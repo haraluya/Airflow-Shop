@@ -6,7 +6,9 @@ import { PricingGroup } from '@/lib/types/product';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { FormField } from '@/components/ui/form-field';
+import { Badge } from '@/components/ui/badge';
+import { PricingGroupDialog } from '@/components/pricing/pricing-group-dialog';
+import { CustomerAssignmentDialog } from '@/components/pricing/customer-assignment-dialog';
 import { 
   Users,
   Plus,
@@ -23,8 +25,6 @@ interface PricingGroupsState {
   groups: PricingGroup[];
   isLoading: boolean;
   searchTerm: string;
-  isModalOpen: boolean;
-  editingGroup: PricingGroup | null;
   error: string | null;
 }
 
@@ -33,8 +33,6 @@ export default function PricingGroupsPage() {
     groups: [],
     isLoading: true,
     searchTerm: '',
-    isModalOpen: false,
-    editingGroup: null,
     error: null
   });
 
@@ -72,6 +70,30 @@ export default function PricingGroupsPage() {
     } catch (error) {
       console.error('刪除價格群組失敗:', error);
       alert('刪除價格群組失敗');
+    }
+  };
+
+  const handleSaveGroup = async (groupData: Omit<PricingGroup, 'id' | 'createdAt' | 'updatedAt' | 'customerIds'>) => {
+    try {
+      const groupWithCustomerIds = {
+        ...groupData,
+        customerIds: []
+      };
+      await pricingGroupsService.createPricingGroup(groupWithCustomerIds);
+      await loadPricingGroups();
+    } catch (error) {
+      console.error('保存價格群組失敗:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateGroup = async (groupId: string, groupData: Omit<PricingGroup, 'id' | 'createdAt' | 'updatedAt' | 'customerIds'>) => {
+    try {
+      await pricingGroupsService.updatePricingGroup(groupId, groupData);
+      await loadPricingGroups();
+    } catch (error) {
+      console.error('更新價格群組失敗:', error);
+      throw error;
     }
   };
 
@@ -125,10 +147,12 @@ export default function PricingGroupsPage() {
           </p>
         </div>
         
-        <Button onClick={() => setState(prev => ({ ...prev, isModalOpen: true, editingGroup: null }))}>
-          <Plus className="mr-2 h-4 w-4" />
-          新增價格群組
-        </Button>
+        <PricingGroupDialog onSave={handleSaveGroup}>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            新增價格群組
+          </Button>
+        </PricingGroupDialog>
       </div>
 
       {/* 統計卡片 */}
@@ -208,10 +232,12 @@ export default function PricingGroupsPage() {
             {state.searchTerm ? '請嘗試其他搜尋條件' : '還沒有建立任何價格群組'}
           </p>
           {!state.searchTerm && (
-            <Button onClick={() => setState(prev => ({ ...prev, isModalOpen: true, editingGroup: null }))}>
-              <Plus className="mr-2 h-4 w-4" />
-              新增第一個價格群組
-            </Button>
+            <PricingGroupDialog onSave={handleSaveGroup}>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                新增第一個價格群組
+              </Button>
+            </PricingGroupDialog>
           )}
         </Card>
       ) : (
@@ -225,17 +251,24 @@ export default function PricingGroupsPage() {
                 </div>
                 
                 <div className="flex items-center space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setState(prev => ({ 
-                      ...prev, 
-                      isModalOpen: true, 
-                      editingGroup: group 
-                    }))}
+                  <CustomerAssignmentDialog 
+                    group={group} 
+                    onUpdate={loadPricingGroups}
                   >
-                    <Edit className="h-4 w-4" />
-                  </Button>
+                    <Button variant="ghost" size="sm">
+                      <Users className="h-4 w-4" />
+                    </Button>
+                  </CustomerAssignmentDialog>
+                  
+                  <PricingGroupDialog 
+                    group={group} 
+                    onSave={(data) => handleUpdateGroup(group.id, data)}
+                  >
+                    <Button variant="ghost" size="sm">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </PricingGroupDialog>
+                  
                   <Button
                     variant="ghost"
                     size="sm"
@@ -284,74 +317,15 @@ export default function PricingGroupsPage() {
 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">狀態</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    group.isActive 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <Badge variant={group.isActive ? 'default' : 'secondary'}>
                     {group.isActive ? '啟用' : '停用'}
-                  </span>
+                  </Badge>
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
-
-      {/* 新增/編輯價格群組模態框 - 後續實作 */}
-      {state.isModalOpen && (
-        <PricingGroupModal
-          group={state.editingGroup}
-          isOpen={state.isModalOpen}
-          onClose={() => setState(prev => ({ 
-            ...prev, 
-            isModalOpen: false, 
-            editingGroup: null 
-          }))}
-          onSave={() => {
-            setState(prev => ({ 
-              ...prev, 
-              isModalOpen: false, 
-              editingGroup: null 
-            }));
-            loadPricingGroups();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// 暫時的模態框元件佔位符
-function PricingGroupModal({
-  group,
-  isOpen,
-  onClose,
-  onSave
-}: {
-  group: PricingGroup | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">
-          {group ? '編輯價格群組' : '新增價格群組'}
-        </h2>
-        <p className="text-muted-foreground mb-4">
-          價格群組編輯功能即將完成...
-        </p>
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>
-            取消
-          </Button>
-          <Button onClick={onSave}>
-            儲存
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
