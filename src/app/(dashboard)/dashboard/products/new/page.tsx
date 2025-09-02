@@ -9,6 +9,9 @@ import { categoriesService } from '@/lib/firebase/categories';
 import { brandsService } from '@/lib/firebase/brands';
 import { productFormSchema, type ProductFormData } from '@/lib/utils/validation';
 import { Category, Brand, PRODUCT_STATUS, ProductImage } from '@/lib/types/product';
+import { ImageUpload, ProductImageData } from '@/components/ui/image-upload';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { storageService } from '@/lib/firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,7 +35,8 @@ interface NewProductPageState {
   brands: Brand[];
   isLoading: boolean;
   isSaving: boolean;
-  images: ProductImage[];
+  images: ProductImageData[];
+  description: string;
   error: string | null;
 }
 
@@ -44,6 +48,7 @@ export default function NewProductPage() {
     isLoading: true,
     isSaving: false,
     images: [],
+    description: '',
     error: null
   });
 
@@ -124,11 +129,21 @@ export default function NewProductPage() {
       const category = state.categories.find(c => c.id === data.categoryId);
       const brand = data.brandId ? state.brands.find(b => b.id === data.brandId) : undefined;
 
+      // 轉換圖片資料格式
+      const images: ProductImage[] = state.images.map(img => ({
+        id: img.id,
+        url: img.url,
+        alt: img.alt,
+        order: img.order,
+        isMain: img.isMain
+      }));
+
       const productData = {
         ...data,
+        description: state.description,
         categoryName: category?.name,
         brandName: brand?.name,
-        images: state.images,
+        images,
         hasVariants: false,
         tags: data.tags || [],
         features: data.features || [],
@@ -226,12 +241,12 @@ export default function NewProductPage() {
                   />
                 </FormField>
 
-                <FormField label="詳細描述" error={errors.description?.message}>
-                  <textarea
-                    {...register('description')}
-                    className="w-full p-3 border border-input rounded-md resize-none"
-                    rows={6}
-                    placeholder="詳細的商品描述"
+                <FormField label="詳細描述">
+                  <RichTextEditor
+                    content={state.description}
+                    onChange={(content) => setState(prev => ({ ...prev, description: content }))}
+                    placeholder="輸入詳細的商品描述..."
+                    minHeight={200}
                   />
                 </FormField>
               </div>
@@ -242,54 +257,17 @@ export default function NewProductPage() {
               <div className="flex items-center space-x-3 mb-6">
                 <ImageIcon className="h-5 w-5" />
                 <h3 className="text-lg font-semibold">商品圖片</h3>
+                <span className="text-sm text-muted-foreground">
+                  ({state.images.length}/10)
+                </span>
               </div>
               
-              {/* 簡化的圖片上傳界面 */}
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">
-                  拖拽圖片到這裡或點擊上傳
-                </p>
-                <Button type="button" variant="outline">
-                  選擇檔案
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  支援JPG、PNG格式，建議尺寸800x800px
-                </p>
-              </div>
-
-              {state.images.length > 0 && (
-                <div className="grid grid-cols-4 gap-4 mt-4">
-                  {state.images.map((image, index) => (
-                    <div key={image.id} className="relative">
-                      <img
-                        src={image.url}
-                        alt={image.alt}
-                        className="w-full h-24 object-cover rounded-lg"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute -top-2 -right-2 h-6 w-6 p-0"
-                        onClick={() => {
-                          setState(prev => ({
-                            ...prev,
-                            images: prev.images.filter(img => img.id !== image.id)
-                          }));
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                      {image.isMain && (
-                        <div className="absolute bottom-1 left-1 bg-primary text-primary-foreground text-xs px-1 rounded">
-                          主圖
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ImageUpload
+                images={state.images}
+                onImagesChange={(images) => setState(prev => ({ ...prev, images }))}
+                maxImages={10}
+                uploadPath={storageService.getProductImagePath()}
+              />
             </Card>
 
             {/* 規格與特色 */}

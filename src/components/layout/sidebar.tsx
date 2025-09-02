@@ -14,7 +14,8 @@ import {
   UserCheck,
   Home,
   Bell,
-  FileText
+  FileText,
+  Image
 } from 'lucide-react';
 
 const navigationItems = [
@@ -40,6 +41,12 @@ const navigationItems = [
     title: '商品管理',
     href: '/dashboard/products',
     icon: Package,
+    roles: [USER_ROLES.ADMIN]
+  },
+  {
+    title: '媒體管理',
+    href: '/dashboard/media',
+    icon: Image,
     roles: [USER_ROLES.ADMIN]
   },
   {
