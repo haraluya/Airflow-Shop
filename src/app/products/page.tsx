@@ -19,6 +19,8 @@ import {
   ShoppingCart,
   Eye,
   Heart,
+  Lock,
+  LogIn,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -56,7 +58,7 @@ interface ProductsPageState {
 }
 
 export default function ProductsPage() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -102,9 +104,17 @@ export default function ProductsPage() {
         }
       });
 
-      // 計算每個商品的價格
+      // 計算每個商品的價格 (只對已登入用戶計算)
       const productsWithPrices = await Promise.all(
         result.products.map(async (product) => {
+          if (!user) {
+            // 未登入用戶不計算價格
+            return {
+              ...product,
+              calculatedPrice: undefined
+            };
+          }
+
           try {
             const priceResult = await pricingEngine.calculatePrice({
               productId: product.id,
@@ -132,9 +142,9 @@ export default function ProductsPage() {
         })
       );
 
-      // 計算最高價格
+      // 計算最高價格 (未登入用戶使用基礎價格)
       const maxPrice = Math.max(...productsWithPrices.map(p => 
-        p.calculatedPrice?.price || p.basePrice
+        user ? (p.calculatedPrice?.price || p.basePrice) : p.basePrice
       ));
 
       setState(prev => ({
@@ -187,9 +197,9 @@ export default function ProductsPage() {
       );
     }
 
-    // 價格篩選
+    // 價格篩選 (未登入用戶使用基礎價格)
     filteredProducts = filteredProducts.filter(product => {
-      const price = product.calculatedPrice?.price || product.basePrice;
+      const price = user ? (product.calculatedPrice?.price || product.basePrice) : product.basePrice;
       return price >= state.filters.priceRange[0] && price <= state.filters.priceRange[1];
     });
 
@@ -211,12 +221,12 @@ export default function ProductsPage() {
         case 'name-desc':
           return b.name.localeCompare(a.name);
         case 'price-asc':
-          const priceA = a.calculatedPrice?.price || a.basePrice;
-          const priceB = b.calculatedPrice?.price || b.basePrice;
+          const priceA = user ? (a.calculatedPrice?.price || a.basePrice) : a.basePrice;
+          const priceB = user ? (b.calculatedPrice?.price || b.basePrice) : b.basePrice;
           return priceA - priceB;
         case 'price-desc':
-          const priceDescA = a.calculatedPrice?.price || a.basePrice;
-          const priceDescB = b.calculatedPrice?.price || b.basePrice;
+          const priceDescA = user ? (a.calculatedPrice?.price || a.basePrice) : a.basePrice;
+          const priceDescB = user ? (b.calculatedPrice?.price || b.basePrice) : b.basePrice;
           return priceDescB - priceDescA;
         case 'created-desc':
           const dateB = b.createdAt instanceof Date ? b.createdAt : b.createdAt.toDate();
@@ -435,6 +445,7 @@ export default function ProductsPage() {
 
 // 商品卡片元件 (Grid 模式)
 function ProductCard({ product }: { product: ProductWithPrice }) {
+  const { user } = useAuth();
   const { addItem, isInCart, getItemQuantity } = useCart();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
@@ -502,28 +513,39 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
           {/* 價格區域 */}
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              {product.calculatedPrice ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-primary">
-                      ${product.calculatedPrice.price.toFixed(2)}
-                    </span>
-                    {product.calculatedPrice.discountAmount > 0 && (
-                      <span className="text-xs text-muted-foreground line-through">
-                        ${product.calculatedPrice.originalPrice.toFixed(2)}
+              {user ? (
+                // 已登入用戶 - 顯示實際價格
+                product.calculatedPrice ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-primary">
+                        ${product.calculatedPrice.price.toFixed(2)}
                       </span>
+                      {product.calculatedPrice.discountAmount > 0 && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          ${product.calculatedPrice.originalPrice.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    {product.calculatedPrice.appliedRule && (
+                      <p className="text-xs text-green-600">
+                        {product.calculatedPrice.appliedRule}
+                      </p>
                     )}
-                  </div>
-                  {product.calculatedPrice.appliedRule && (
-                    <p className="text-xs text-green-600">
-                      {product.calculatedPrice.appliedRule}
-                    </p>
-                  )}
-                </>
+                  </>
+                ) : (
+                  <span className="font-bold text-primary">
+                    ${product.basePrice.toFixed(2)}
+                  </span>
+                )
               ) : (
-                <span className="font-bold text-primary">
-                  ${product.basePrice.toFixed(2)}
-                </span>
+                // 未登入用戶 - 顯示會員限定提示
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    會員限定價格
+                  </span>
+                </div>
               )}
             </div>
 
@@ -542,26 +564,44 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
 
       {/* 購物車按鈕 */}
       <div className="px-4 pb-4">
-        {inCartQuantity > 0 ? (
-          <div className="space-y-2">
-            <Button size="sm" className="w-full" variant="outline">
+        {user ? (
+          // 已登入用戶 - 顯示購物車功能
+          inCartQuantity > 0 ? (
+            <div className="space-y-2">
+              <Button size="sm" className="w-full" variant="outline">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                已在購物車 ({inCartQuantity})
+              </Button>
+              <Button size="sm" className="w-full" onClick={handleAddToCart} disabled={isAddingToCart}>
+                {isAddingToCart ? '加入中...' : '再加一個'}
+              </Button>
+            </div>
+          ) : (
+            <Button 
+              size="sm" 
+              className="w-full" 
+              onClick={handleAddToCart}
+              disabled={isAddingToCart}
+            >
               <ShoppingCart className="mr-2 h-4 w-4" />
-              已在購物車 ({inCartQuantity})
+              {isAddingToCart ? '加入中...' : '加入購物車'}
             </Button>
-            <Button size="sm" className="w-full" onClick={handleAddToCart} disabled={isAddingToCart}>
-              {isAddingToCart ? '加入中...' : '再加一個'}
+          )
+        ) : (
+          // 未登入用戶 - 顯示登入提示
+          <div className="space-y-2">
+            <Button size="sm" className="w-full" variant="outline" asChild>
+              <Link href="/login">
+                <LogIn className="mr-2 h-4 w-4" />
+                登入查看價格
+              </Link>
+            </Button>
+            <Button size="sm" className="w-full" variant="ghost" asChild>
+              <Link href="/register">
+                註冊成為會員
+              </Link>
             </Button>
           </div>
-        ) : (
-          <Button 
-            size="sm" 
-            className="w-full" 
-            onClick={handleAddToCart}
-            disabled={isAddingToCart}
-          >
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            {isAddingToCart ? '加入中...' : '加入購物車'}
-          </Button>
         )}
       </div>
     </Card>
@@ -570,6 +610,7 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
 
 // 商品列表項目元件 (List 模式)
 function ProductListItem({ product }: { product: ProductWithPrice }) {
+  const { user } = useAuth();
   const { addItem, isInCart, getItemQuantity } = useCart();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
@@ -635,45 +676,74 @@ function ProductListItem({ product }: { product: ProductWithPrice }) {
 
           {/* 價格與操作 */}
           <div className="flex flex-col items-end gap-2">
-            {product.calculatedPrice ? (
-              <div className="text-right">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-lg text-primary">
-                    ${product.calculatedPrice.price.toFixed(2)}
-                  </span>
-                  {product.calculatedPrice.discountAmount > 0 && (
-                    <span className="text-sm text-muted-foreground line-through">
-                      ${product.calculatedPrice.originalPrice.toFixed(2)}
+            {user ? (
+              // 已登入用戶 - 顯示實際價格
+              product.calculatedPrice ? (
+                <div className="text-right">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-lg text-primary">
+                      ${product.calculatedPrice.price.toFixed(2)}
                     </span>
+                    {product.calculatedPrice.discountAmount > 0 && (
+                      <span className="text-sm text-muted-foreground line-through">
+                        ${product.calculatedPrice.originalPrice.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  {product.calculatedPrice.appliedRule && (
+                    <p className="text-xs text-green-600">
+                      {product.calculatedPrice.appliedRule}
+                    </p>
                   )}
                 </div>
-                {product.calculatedPrice.appliedRule && (
-                  <p className="text-xs text-green-600">
-                    {product.calculatedPrice.appliedRule}
-                  </p>
-                )}
-              </div>
+              ) : (
+                <span className="font-bold text-lg text-primary">
+                  ${product.basePrice.toFixed(2)}
+                </span>
+              )
             ) : (
-              <span className="font-bold text-lg text-primary">
-                ${product.basePrice.toFixed(2)}
-              </span>
+              // 未登入用戶 - 顯示會員限定提示
+              <div className="flex items-center gap-2 text-right">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  會員限定價格
+                </span>
+              </div>
             )}
 
-            {inCartQuantity > 0 ? (
-              <div className="flex flex-col gap-2">
-                <div className="text-xs text-muted-foreground text-center">
-                  購物車中: {inCartQuantity} 件
+            {user ? (
+              // 已登入用戶 - 顯示購物車功能
+              inCartQuantity > 0 ? (
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-muted-foreground text-center">
+                    購物車中: {inCartQuantity} 件
+                  </div>
+                  <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    {isAddingToCart ? '加入中...' : '再加一個'}
+                  </Button>
                 </div>
+              ) : (
                 <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
                   <ShoppingCart className="mr-2 h-4 w-4" />
-                  {isAddingToCart ? '加入中...' : '再加一個'}
+                  {isAddingToCart ? '加入中...' : '加入購物車'}
+                </Button>
+              )
+            ) : (
+              // 未登入用戶 - 顯示登入按鈕
+              <div className="flex flex-col gap-2">
+                <Button size="sm" variant="outline" asChild>
+                  <Link href="/login">
+                    <LogIn className="mr-2 h-4 w-4" />
+                    登入查看價格
+                  </Link>
+                </Button>
+                <Button size="sm" variant="ghost" asChild>
+                  <Link href="/register">
+                    註冊成為會員
+                  </Link>
                 </Button>
               </div>
-            ) : (
-              <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                {isAddingToCart ? '加入中...' : '加入購物車'}
-              </Button>
             )}
           </div>
         </div>
