@@ -22,37 +22,64 @@ export type UserStatus = typeof USER_STATUS[keyof typeof USER_STATUS];
 
 // 路由常數
 export const ROUTES = {
+  // 公開頁面
   HOME: '/',
+  PUBLIC_PRODUCTS: '/products',
+  PUBLIC_PRODUCT_DETAIL: '/products/[id]',
+  ABOUT: '/about',
+  CONTACT: '/contact',
+  
+  // 認證頁面
   LOGIN: '/login',
   REGISTER: '/register',
-  DASHBOARD: '/dashboard',
-  PRODUCTS: '/products',
-  ORDERS: '/orders',
-  CUSTOMERS: '/customers',
-  ADMIN: '/admin',
+  
+  // 會員專區
+  MEMBER_PRODUCTS: '/shop/products',
+  MEMBER_PRODUCT_DETAIL: '/shop/products/[id]',
+  CART: '/shop/cart',
+  CHECKOUT: '/shop/checkout',
+  ORDERS: '/shop/orders',
+  ORDER_DETAIL: '/shop/orders/[id]',
+  
+  // 後台管理
+  ADMIN_LOGIN: '/admin',
+  ADMIN_DASHBOARD: '/admin/dashboard',
+  ADMIN_CUSTOMERS: '/admin/dashboard/customers',
+  ADMIN_PRODUCTS: '/admin/dashboard/products',
+  ADMIN_ORDERS: '/admin/dashboard/orders',
+  ADMIN_PRICING: '/admin/dashboard/pricing',
 } as const;
 
-// 受保護的路由
-export const PROTECTED_ROUTES = [
-  '/dashboard',
+// 公開路由（不需要認證）
+export const PUBLIC_ROUTES = [
+  '/',
   '/products',
-  '/orders',
-  '/customers',
-  '/admin',
-  '/profile',
+  '/products/[id]',
+  '/about',
+  '/contact',
+  '/login',
+  '/register',
 ];
 
-// 僅限管理員的路由
+// 會員路由（需要客戶認證）
+export const MEMBER_ROUTES = [
+  '/shop',
+  '/shop/products',
+  '/shop/products/[id]',
+  '/shop/cart',
+  '/shop/checkout',
+  '/shop/orders',
+  '/shop/orders/[id]',
+];
+
+// 後台路由（需要管理員認證）
 export const ADMIN_ROUTES = [
-  '/admin',
-  '/customers',
-  '/dashboard/admin',
-];
-
-// 僅限業務員的路由  
-export const SALESPERSON_ROUTES = [
-  '/dashboard/sales',
-  '/customers/my',
+  '/admin/dashboard',
+  '/admin/dashboard/customers',
+  '/admin/dashboard/products',
+  '/admin/dashboard/orders',
+  '/admin/dashboard/pricing',
+  '/admin/dashboard/media',
 ];
 
 // Firebase 集合名稱
