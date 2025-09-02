@@ -66,6 +66,7 @@ export const COLLECTIONS = {
   PRICING_GROUPS: 'pricingGroups',
   PRODUCT_PRICES: 'productPrices',
   REFERRAL_CODES: 'referralCodes',
+  CARTS: 'carts',
 } as const;
 
 // 驗證常數

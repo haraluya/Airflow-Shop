@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useCart } from '@/lib/hooks/use-cart';
 import { 
   Search,
   Grid3X3,
@@ -434,6 +435,25 @@ export default function ProductsPage() {
 
 // 商品卡片元件 (Grid 模式)
 function ProductCard({ product }: { product: ProductWithPrice }) {
+  const { addItem, isInCart, getItemQuantity } = useCart();
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      setIsAddingToCart(true);
+      await addItem({ productId: product.id, quantity: 1 });
+    } catch (error) {
+      // 錯誤處理已在 hook 中完成
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const inCartQuantity = getItemQuantity(product.id);
+
   return (
     <Card className="group overflow-hidden hover:shadow-lg transition-shadow">
       <Link href={`/products/${product.id}`}>
@@ -522,10 +542,27 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
 
       {/* 購物車按鈕 */}
       <div className="px-4 pb-4">
-        <Button size="sm" className="w-full">
-          <ShoppingCart className="mr-2 h-4 w-4" />
-          加入購物車
-        </Button>
+        {inCartQuantity > 0 ? (
+          <div className="space-y-2">
+            <Button size="sm" className="w-full" variant="outline">
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              已在購物車 ({inCartQuantity})
+            </Button>
+            <Button size="sm" className="w-full" onClick={handleAddToCart} disabled={isAddingToCart}>
+              {isAddingToCart ? '加入中...' : '再加一個'}
+            </Button>
+          </div>
+        ) : (
+          <Button 
+            size="sm" 
+            className="w-full" 
+            onClick={handleAddToCart}
+            disabled={isAddingToCart}
+          >
+            <ShoppingCart className="mr-2 h-4 w-4" />
+            {isAddingToCart ? '加入中...' : '加入購物車'}
+          </Button>
+        )}
       </div>
     </Card>
   );
@@ -533,6 +570,25 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
 
 // 商品列表項目元件 (List 模式)
 function ProductListItem({ product }: { product: ProductWithPrice }) {
+  const { addItem, isInCart, getItemQuantity } = useCart();
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      setIsAddingToCart(true);
+      await addItem({ productId: product.id, quantity: 1 });
+    } catch (error) {
+      // 錯誤處理已在 hook 中完成
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const inCartQuantity = getItemQuantity(product.id);
+
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
       <Link href={`/products/${product.id}`}>
@@ -603,10 +659,22 @@ function ProductListItem({ product }: { product: ProductWithPrice }) {
               </span>
             )}
 
-            <Button size="sm">
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              加入購物車
-            </Button>
+            {inCartQuantity > 0 ? (
+              <div className="flex flex-col gap-2">
+                <div className="text-xs text-muted-foreground text-center">
+                  購物車中: {inCartQuantity} 件
+                </div>
+                <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  {isAddingToCart ? '加入中...' : '再加一個'}
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                {isAddingToCart ? '加入中...' : '加入購物車'}
+              </Button>
+            )}
           </div>
         </div>
       </Link>

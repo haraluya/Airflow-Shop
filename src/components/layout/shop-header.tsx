@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/providers/auth-provider';
+import { useCart } from '@/lib/hooks/use-cart';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -21,8 +22,8 @@ import {
 
 export function ShopHeader() {
   const { profile, logout } = useAuth();
+  const { itemCount } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
-  const [cartItemCount] = useState(3); // 這裡應該從購物車狀態獲取
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,12 +112,12 @@ export function ShopHeader() {
           <Link href="/cart">
             <Button variant="ghost" size="sm" className="relative">
               <ShoppingCart className="h-5 w-5" />
-              {cartItemCount > 0 && (
+              {itemCount > 0 && (
                 <Badge 
                   variant="destructive" 
                   className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center text-xs p-0"
                 >
-                  {cartItemCount > 99 ? '99+' : cartItemCount}
+                  {itemCount > 99 ? '99+' : itemCount}
                 </Badge>
               )}
             </Button>
