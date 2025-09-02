@@ -15,7 +15,8 @@ import {
   Home,
   Bell,
   FileText,
-  Image
+  Image,
+  DollarSign
 } from 'lucide-react';
 
 const navigationItems = [
@@ -47,6 +48,12 @@ const navigationItems = [
     title: '媒體管理',
     href: '/dashboard/media',
     icon: Image,
+    roles: [USER_ROLES.ADMIN]
+  },
+  {
+    title: '價格管理',
+    href: '/dashboard/pricing',
+    icon: DollarSign,
     roles: [USER_ROLES.ADMIN]
   },
   {
