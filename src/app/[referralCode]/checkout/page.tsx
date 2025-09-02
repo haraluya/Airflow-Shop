@@ -25,7 +25,7 @@ import { useCart } from '@/lib/hooks/use-cart';
 import { useAuth } from '@/lib/providers/auth-provider';
 import { Address } from '@/lib/types/common';
 import { PaymentMethod, DeliveryMethod } from '@/lib/types/order';
-import { ordersService } from '@/lib/firebase/orders';
+import { OrdersService } from '@/lib/services/orders-service';
 import Link from 'next/link';
 
 export default function CheckoutPage() {
@@ -41,6 +41,7 @@ export default function CheckoutPage() {
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(DeliveryMethod.STANDARD);
   const [notes, setNotes] = useState('');
 
+  const ordersService = new OrdersService();
   const cartSummary = getCartSummary();
 
   // 檢查是否已登入和有商品
@@ -105,6 +106,8 @@ export default function CheckoutPage() {
       
       const result = await ordersService.createOrderFromCart(
         user.uid,
+        user.email!,
+        customerProfile.contactPerson || user.displayName || '客戶',
         {
           items: cart.items,
           deliveryAddress: selectedAddress,
@@ -112,8 +115,7 @@ export default function CheckoutPage() {
           paymentMethod,
           deliveryMethod,
           notes
-        },
-        profile.id // customerId
+        }
       );
 
       if (result.success && result.orderId) {

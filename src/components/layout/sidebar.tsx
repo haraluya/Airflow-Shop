@@ -22,67 +22,67 @@ import {
 const navigationItems = [
   {
     title: '總覽',
-    href: '/dashboard',
+    href: '/admin/dashboard',
     icon: Home,
     roles: [USER_ROLES.ADMIN, USER_ROLES.SALESPERSON]
   },
   {
     title: '客戶審核',
-    href: '/dashboard/customers/pending',
+    href: '/admin/dashboard/customers/pending',
     icon: UserCheck,
     roles: [USER_ROLES.ADMIN]
   },
   {
     title: '客戶管理',
-    href: '/dashboard/customers',
+    href: '/admin/dashboard/customers',
     icon: Users,
     roles: [USER_ROLES.ADMIN, USER_ROLES.SALESPERSON]
   },
   {
     title: '商品管理',
-    href: '/dashboard/products',
+    href: '/admin/dashboard/products',
     icon: Package,
     roles: [USER_ROLES.ADMIN]
   },
   {
     title: '媒體管理',
-    href: '/dashboard/media',
+    href: '/admin/dashboard/media',
     icon: Image,
     roles: [USER_ROLES.ADMIN]
   },
   {
     title: '價格管理',
-    href: '/dashboard/pricing',
+    href: '/admin/dashboard/pricing',
     icon: DollarSign,
     roles: [USER_ROLES.ADMIN]
   },
   {
     title: '訂單管理',
-    href: '/dashboard/orders',
+    href: '/admin/dashboard/orders',
     icon: ShoppingCart,
     roles: [USER_ROLES.ADMIN, USER_ROLES.SALESPERSON]
   },
   {
     title: '營運分析',
-    href: '/dashboard/analytics',
+    href: '/admin/dashboard/analytics',
     icon: BarChart3,
     roles: [USER_ROLES.ADMIN]
   },
   {
     title: '系統通知',
-    href: '/dashboard/notifications',
+    href: '/admin/dashboard/notifications',
     icon: Bell,
     roles: [USER_ROLES.ADMIN]
   },
   {
     title: '報告中心',
-    href: '/dashboard/reports',
+    href: '/admin/dashboard/reports',
     icon: FileText,
     roles: [USER_ROLES.ADMIN, USER_ROLES.SALESPERSON]
   },
   {
     title: '系統設定',
-    href: '/dashboard/settings',
+    href: '/admin/dashboard/settings',
     icon: Settings,
     roles: [USER_ROLES.ADMIN]
   }

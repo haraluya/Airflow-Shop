@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ROUTES } from '@/lib/utils/constants';
+import { ReferralRedirect } from '@/components/referral-redirect';
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
+      <ReferralRedirect />
       {/* Hero Section */}
       <section className="relative py-20 px-4">
         <div className="container mx-auto text-center">
