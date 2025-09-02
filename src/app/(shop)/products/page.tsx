@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { productsService } from '@/lib/firebase/products';
 import { pricingEngine } from '@/lib/firebase/pricing';
 import { useAuth } from '@/lib/providers/auth-provider';
@@ -12,17 +12,16 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Search,
-  Filter,
   Grid3X3,
   List,
   Package,
-  Star,
   ShoppingCart,
   Eye,
-  Heart
+  Heart,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { debounce } from 'lodash';
 
 interface ProductWithPrice extends Product {
   calculatedPrice?: {
@@ -36,60 +35,70 @@ interface ProductWithPrice extends Product {
 
 interface ProductsPageState {
   products: ProductWithPrice[];
+  allProducts: ProductWithPrice[];
   isLoading: boolean;
   searchTerm: string;
-  selectedCategory: string;
-  selectedBrand: string;
-  sortBy: 'name' | 'price' | 'created' | 'popular';
-  sortOrder: 'asc' | 'desc';
+  sortBy: string;
   viewMode: 'grid' | 'list';
   currentPage: number;
   totalPages: number;
   error: string | null;
+  filters: {
+    categoryIds: string[];
+    brandIds: string[];
+    priceRange: [number, number];
+    tags: string[];
+    inStock: boolean;
+    isFeatured: boolean;
+  };
+  maxPrice: number;
 }
 
 export default function ProductsPage() {
   const { profile } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   
   const [state, setState] = useState<ProductsPageState>({
     products: [],
+    allProducts: [],
     isLoading: true,
     searchTerm: searchParams?.get('search') || '',
-    selectedCategory: searchParams?.get('category') || '',
-    selectedBrand: searchParams?.get('brand') || '',
-    sortBy: 'name',
-    sortOrder: 'asc',
+    sortBy: 'name-asc',
     viewMode: 'grid',
     currentPage: 1,
     totalPages: 1,
-    error: null
+    error: null,
+    filters: {
+      categoryIds: searchParams?.get('category') ? [searchParams.get('category')!] : [],
+      brandIds: searchParams?.get('brand') ? [searchParams.get('brand')!] : [],
+      priceRange: [0, 10000],
+      tags: [],
+      inStock: false,
+      isFeatured: false
+    },
+    maxPrice: 10000
   });
 
   useEffect(() => {
     loadProducts();
-  }, [state.searchTerm, state.selectedCategory, state.selectedBrand, state.sortBy, state.sortOrder, state.currentPage]);
+  }, []);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [state.allProducts, state.searchTerm, state.filters, state.sortBy, state.currentPage]);
 
   const loadProducts = async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
+      // 載入所有商品
       const result = await productsService.getProducts({
-        limit: 12,
-        page: state.currentPage,
+        limit: 1000, // 載入所有商品以支援客戶端篩選
         filters: {
-          search: state.searchTerm || undefined,
-          categoryId: state.selectedCategory || undefined,
-          brandId: state.selectedBrand || undefined,
-          status: 'active'
-        },
-        sortBy: state.sortOrder === 'desc' && state.sortBy === 'price' 
-          ? 'price-desc' 
-          : state.sortOrder === 'asc' && state.sortBy === 'price'
-          ? 'price-asc'
-          : state.sortBy === 'name'
-          ? 'name'
-          : 'created-desc'
+          status: 'active',
+          isVisible: true
+        }
       });
 
       // 計算每個商品的價格
@@ -122,10 +131,20 @@ export default function ProductsPage() {
         })
       );
 
+      // 計算最高價格
+      const maxPrice = Math.max(...productsWithPrices.map(p => 
+        p.calculatedPrice?.price || p.basePrice
+      ));
+
       setState(prev => ({
         ...prev,
+        allProducts: productsWithPrices,
         products: productsWithPrices,
-        totalPages: Math.ceil(result.total / 12),
+        maxPrice: Math.ceil(maxPrice / 100) * 100,
+        filters: {
+          ...prev.filters,
+          priceRange: [0, Math.ceil(maxPrice / 100) * 100]
+        },
         isLoading: false,
         error: null
       }));
@@ -139,12 +158,102 @@ export default function ProductsPage() {
     }
   };
 
-  const handleSearch = (value: string) => {
-    setState(prev => ({ ...prev, searchTerm: value, currentPage: 1 }));
+  const applyFiltersAndSort = () => {
+    let filteredProducts = [...state.allProducts];
+
+    // 搜尋篩選
+    if (state.searchTerm) {
+      const searchLower = state.searchTerm.toLowerCase();
+      filteredProducts = filteredProducts.filter(product =>
+        product.name.toLowerCase().includes(searchLower) ||
+        product.sku.toLowerCase().includes(searchLower) ||
+        product.description?.toLowerCase().includes(searchLower) ||
+        product.tags.some(tag => tag.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // 分類篩選
+    if (state.filters.categoryIds.length > 0) {
+      filteredProducts = filteredProducts.filter(product =>
+        state.filters.categoryIds.includes(product.categoryId)
+      );
+    }
+
+    // 品牌篩選
+    if (state.filters.brandIds.length > 0) {
+      filteredProducts = filteredProducts.filter(product =>
+        product.brandId && state.filters.brandIds.includes(product.brandId)
+      );
+    }
+
+    // 價格篩選
+    filteredProducts = filteredProducts.filter(product => {
+      const price = product.calculatedPrice?.price || product.basePrice;
+      return price >= state.filters.priceRange[0] && price <= state.filters.priceRange[1];
+    });
+
+    // 庫存篩選
+    if (state.filters.inStock) {
+      filteredProducts = filteredProducts.filter(product => product.stock > 0);
+    }
+
+    // 精選篩選
+    if (state.filters.isFeatured) {
+      filteredProducts = filteredProducts.filter(product => product.isFeatured);
+    }
+
+    // 排序
+    filteredProducts.sort((a, b) => {
+      switch (state.sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'price-asc':
+          const priceA = a.calculatedPrice?.price || a.basePrice;
+          const priceB = b.calculatedPrice?.price || b.basePrice;
+          return priceA - priceB;
+        case 'price-desc':
+          const priceDescA = a.calculatedPrice?.price || a.basePrice;
+          const priceDescB = b.calculatedPrice?.price || b.basePrice;
+          return priceDescB - priceDescA;
+        case 'created-desc':
+          const dateB = b.createdAt instanceof Date ? b.createdAt : b.createdAt.toDate();
+          const dateA = a.createdAt instanceof Date ? a.createdAt : a.createdAt.toDate();
+          return dateB.getTime() - dateA.getTime();
+        case 'popular':
+          return b.orderCount - a.orderCount;
+        default:
+          return 0;
+      }
+    });
+
+    // 分頁
+    const itemsPerPage = 12;
+    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+    const startIndex = (state.currentPage - 1) * itemsPerPage;
+    const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+
+    setState(prev => ({
+      ...prev,
+      products: paginatedProducts,
+      totalPages
+    }));
   };
 
-  const handleSort = (sortBy: string, sortOrder: 'asc' | 'desc') => {
-    setState(prev => ({ ...prev, sortBy: sortBy as any, sortOrder, currentPage: 1 }));
+  const debouncedSearch = useCallback(
+    debounce((value: string) => {
+      setState(prev => ({ ...prev, searchTerm: value, currentPage: 1 }));
+    }, 300),
+    []
+  );
+
+  const handleFiltersChange = (newFilters: typeof state.filters) => {
+    setState(prev => ({ ...prev, filters: newFilters, currentPage: 1 }));
+  };
+
+  const handleSortChange = (value: string) => {
+    setState(prev => ({ ...prev, sortBy: value, currentPage: 1 }));
   };
 
   const formatPrice = (price: number) => {
@@ -174,97 +283,127 @@ export default function ProductsPage() {
           </p>
         </div>
 
-        {/* 搜尋與篩選列 */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-8">
-          {/* 搜尋框 */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜尋商品..."
-              value={state.searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        <div className="flex gap-6">
+          {/* 側邊篩選欄 - 桌面版 */}
+          <aside className="hidden lg:block w-64 flex-shrink-0">
+            <div className="p-4 border rounded-lg">
+              <h3 className="font-semibold mb-4">篩選</h3>
+              <p>篩選功能開發中...</p>
+            </div>
+          </aside>
 
-          {/* 排序選項 */}
-          <div className="flex gap-2">
-            <Button
-              variant={state.sortBy === 'name' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleSort('name', state.sortOrder === 'asc' ? 'desc' : 'asc')}
-            >
-              名稱 {state.sortBy === 'name' && (state.sortOrder === 'asc' ? '↑' : '↓')}
-            </Button>
-            <Button
-              variant={state.sortBy === 'price' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleSort('price', state.sortOrder === 'asc' ? 'desc' : 'asc')}
-            >
-              價格 {state.sortBy === 'price' && (state.sortOrder === 'asc' ? '↑' : '↓')}
-            </Button>
-          </div>
+          {/* 主要內容區 */}
+          <div className="flex-1">
+            {/* 搜尋與排序列 */}
+            <div className="flex flex-col lg:flex-row gap-4 mb-6">
+              {/* 搜尋框 */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="搜尋商品名稱、SKU或標籤..."
+                  defaultValue={state.searchTerm}
+                  onChange={(e) => debouncedSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
 
-          {/* 檢視模式切換 */}
-          <div className="flex border rounded-lg">
-            <Button
-              variant={state.viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setState(prev => ({ ...prev, viewMode: 'grid' }))}
-              className="rounded-r-none"
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={state.viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setState(prev => ({ ...prev, viewMode: 'list' }))}
-              className="rounded-l-none"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+              {/* 手機版篩選按鈕 */}
+              <div className="lg:hidden">
+                <Button variant="outline" size="sm">
+                  篩選 (開發中)
+                </Button>
+              </div>
 
-        {/* 錯誤訊息 */}
-        {state.error && (
-          <div className="mb-6 p-4 bg-destructive/10 text-destructive rounded-lg">
-            {state.error}
-          </div>
-        )}
+              {/* 排序選項 */}
+              <div className="flex gap-2">
+                <Button
+                  variant={state.sortBy === 'name-asc' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSortChange('name-asc')}
+                >
+                  名稱 ↑
+                </Button>
+                <Button
+                  variant={state.sortBy === 'price-asc' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSortChange('price-asc')}
+                >
+                  價格 ↑
+                </Button>
+                <Button
+                  variant={state.sortBy === 'price-desc' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSortChange('price-desc')}
+                >
+                  價格 ↓
+                </Button>
+              </div>
 
-        {/* 商品列表 */}
-        {state.products.length === 0 && !state.isLoading ? (
+              {/* 檢視模式切換 */}
+              <div className="flex border rounded-lg">
+                <Button
+                  variant={state.viewMode === 'grid' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setState(prev => ({ ...prev, viewMode: 'grid' }))}
+                  className="rounded-r-none"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={state.viewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setState(prev => ({ ...prev, viewMode: 'list' }))}
+                  className="rounded-l-none"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 商品數量提示 */}
+            <div className="mb-4 text-sm text-muted-foreground">
+              找到 {state.allProducts.length} 個商品，目前顯示 {state.products.length} 個
+            </div>
+
+            {/* 錯誤訊息 */}
+            {state.error && (
+              <div className="mb-6 p-4 bg-destructive/10 text-destructive rounded-lg">
+                {state.error}
+              </div>
+            )}
+
+            {/* 商品列表 */}
+            {state.products.length === 0 && !state.isLoading ? (
           <div className="text-center py-12">
             <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">沒有找到商品</h3>
             <p className="text-muted-foreground">
               請嘗試調整搜尋條件或瀏覽其他分類
             </p>
-          </div>
-        ) : (
-          <>
-            {/* Grid 檢視 */}
-            {state.viewMode === 'grid' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+              </div>
+            ) : (
+              <>
+                {/* Grid 檢視 */}
+                {state.viewMode === 'grid' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {state.products.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
-              </div>
-            )}
+                  </div>
+                )}
 
-            {/* List 檢視 */}
-            {state.viewMode === 'list' && (
-              <div className="space-y-4 mb-8">
+                {/* List 檢視 */}
+                {state.viewMode === 'list' && (
+                  <div className="space-y-4 mb-8">
                 {state.products.map((product) => (
                   <ProductListItem key={product.id} product={product} />
                 ))}
-              </div>
-            )}
+                  </div>
+                )}
 
-            {/* 分頁 */}
-            {state.totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2">
+                {/* 分頁 */}
+                {state.totalPages > 1 && (
+                  <div className="flex justify-center items-center gap-2">
                 <Button
                   variant="outline"
                   disabled={state.currentPage === 1}
@@ -282,10 +421,12 @@ export default function ProductsPage() {
                 >
                   下一頁
                 </Button>
-              </div>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );
