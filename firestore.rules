@@ -1,0 +1,133 @@
+// Firestore 安全規則 - Airflow B2B 電商平台
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 基礎認證檢查函數
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // 檢查是否為資源擁有者
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // 檢查是否為系統管理員
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // 檢查是否為客戶
+    function isCustomer() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer';
+    }
+    
+    // 檢查是否為銷售人員
+    function isSalesPerson() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['sales', 'admin'];
+    }
+
+    // 用戶資料 - 只能讀寫自己的資料
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated();
+    }
+    
+    // 產品資料 - 客戶可讀取，管理員可寫入
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 產品分類 - 客戶可讀取，管理員可寫入
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 品牌資料 - 客戶可讀取，管理員可寫入
+    match /brands/{brandId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 客戶資料 - 客戶可讀取自己的，銷售和管理員可讀寫所有
+    match /customers/{customerId} {
+      allow read: if isOwner(customerId) || isSalesPerson() || isAdmin();
+      allow write: if isSalesPerson() || isAdmin();
+      allow create: if isAuthenticated();
+    }
+    
+    // 訂單資料 - 客戶可讀寫自己的，銷售和管理員可讀寫所有
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.customerId == request.auth.uid || 
+                      isSalesPerson() || 
+                      isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+                       (resource.data.customerId == request.auth.uid || 
+                        isSalesPerson() || 
+                        isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // 報價單資料 - 與訂單相同規則
+    match /quotations/{quotationId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.customerId == request.auth.uid || 
+                      isSalesPerson() || 
+                      isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+                       (resource.data.customerId == request.auth.uid || 
+                        isSalesPerson() || 
+                        isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // 庫存記錄 - 只有管理員可以讀寫
+    match /inventory/{inventoryId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // 供應商資料 - 只有管理員可以讀寫
+    match /suppliers/{supplierId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // 購物車資料 - 用戶只能存取自己的購物車
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // 購物車項目 - 用戶只能存取自己的購物車項目
+    match /carts/{userId}/items/{itemId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // 系統設定 - 只有管理員可以讀寫
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 統計資料 - 只有管理員可以讀取
+    match /stats/{statId} {
+      allow read: if isAdmin();
+      allow write: if false; // 統計資料只能由後端函數更新
+    }
+    
+    // 預設拒絕所有其他存取
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
