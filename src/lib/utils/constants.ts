@@ -48,6 +48,12 @@ export const ROUTES = {
   ADMIN_PRODUCTS: '/admin/dashboard/products',
   ADMIN_ORDERS: '/admin/dashboard/orders',
   ADMIN_PRICING: '/admin/dashboard/pricing',
+  
+  // 業務員專區
+  SALESPERSON_DASHBOARD: '/salesperson/dashboard',
+  SALESPERSON_CUSTOMERS: '/salesperson/customers',
+  SALESPERSON_ORDERS: '/salesperson/orders',
+  SALESPERSON_PERFORMANCE: '/salesperson/performance',
 } as const;
 
 // 公開路由（不需要認證）
@@ -82,10 +88,19 @@ export const ADMIN_ROUTES = [
   '/admin/dashboard/media',
 ];
 
+// 業務員路由（需要業務員認證）
+export const SALESPERSON_ROUTES = [
+  '/salesperson/dashboard',
+  '/salesperson/customers',
+  '/salesperson/orders',
+  '/salesperson/performance',
+];
+
 // Firebase 集合名稱
 export const COLLECTIONS = {
   USERS: 'users',
   CUSTOMERS: 'customers', 
+  SALESPERSONS: 'salespersons',
   PRODUCTS: 'products',
   ORDERS: 'orders',
   CATEGORIES: 'categories',
@@ -93,6 +108,7 @@ export const COLLECTIONS = {
   PRICING_GROUPS: 'pricingGroups',
   PRODUCT_PRICES: 'productPrices',
   REFERRAL_CODES: 'referralCodes',
+  REFERRAL_TRACKING: 'referralTracking',
   CARTS: 'carts',
 } as const;
 
