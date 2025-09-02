@@ -9,6 +9,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { BaseFirebaseService } from './base-service';
 import { Product } from '@/lib/types/product';
+import { COLLECTIONS } from '@/lib/utils/constants';
 
 export interface PricingRule {
   id: string;
@@ -152,7 +153,7 @@ export class PricingService extends BaseFirebaseService {
   async getCustomerPricingGroup(customerId: string): Promise<PricingGroup | null> {
     try {
       // 先從客戶檔案中取得價格群組ID
-      const customerDoc = await getDoc(doc(db, 'customers', customerId));
+      const customerDoc = await getDoc(doc(db, COLLECTIONS.CUSTOMERS, customerId));
       
       if (!customerDoc.exists()) {
         return await this.getDefaultPricingGroup();

@@ -164,6 +164,7 @@ export interface ReferralReport {
 export interface CreateReferralCodeData {
   code: string;
   salespersonId: string;
+  salespersonName?: string;            // 業務員姓名（可選，服務會自動填入）
   description?: string;
   expiryDate?: Date;
   landingPageUrl?: string;

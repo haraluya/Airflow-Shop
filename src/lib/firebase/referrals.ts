@@ -53,13 +53,14 @@ export class ReferralCodesService extends BaseFirebaseService<ReferralCode> {
       const newReferralCode: ReferralCode = {
         ...data,
         id: docRef.id,
+        salespersonName: data.salespersonName || '',
         isActive: true,
         totalClicks: 0,
         totalRegistrations: 0,
         totalOrders: 0,
         totalSales: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: Timestamp.fromDate(new Date()),
+        updatedAt: Timestamp.fromDate(new Date()),
       };
 
       await setDoc(docRef, this.prepareCreateData(newReferralCode));
@@ -316,8 +317,7 @@ export class ReferralTrackingService extends BaseFirebaseService<ReferralTrackin
     } = {}
   ): Promise<ReferralTracking[]> {
     try {
-      let q = collection(db, this.collectionName);
-      const constraints = [where('referralCode', '==', referralCode)];
+      const constraints: any[] = [where('referralCode', '==', referralCode)];
 
       if (options.eventType) {
         constraints.push(where('eventType', '==', options.eventType));
@@ -337,8 +337,8 @@ export class ReferralTrackingService extends BaseFirebaseService<ReferralTrackin
         constraints.push(limit(options.limit));
       }
 
-      const queryConstraints = query(q, ...constraints);
-      const querySnapshot = await getDocs(queryConstraints);
+      const q = query(collection(db, this.collectionName), ...constraints);
+      const querySnapshot = await getDocs(q);
 
       const trackingRecords: ReferralTracking[] = [];
       querySnapshot.docs.forEach(doc => {

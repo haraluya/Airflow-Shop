@@ -31,7 +31,7 @@ service cloud.firestore {
     function isSalesPerson() {
       return isAuthenticated() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['sales', 'admin'];
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['salesperson', 'admin'];
     }
 
     // 用戶資料 - 只能讀寫自己的資料
@@ -111,6 +111,53 @@ service cloud.firestore {
     // 購物車項目 - 用戶只能存取自己的購物車項目
     match /carts/{userId}/items/{itemId} {
       allow read, write: if isOwner(userId);
+    }
+    
+    // 業務員資料 - 業務員可讀取自己的，管理員可讀寫所有
+    match /salespersons/{salespersonId} {
+      allow read: if isOwner(salespersonId) || isAdmin();
+      allow write: if isAdmin();
+      allow create: if isAdmin();
+    }
+    
+    // 推薦碼資料 - 業務員可讀取自己的，管理員可讀寫所有
+    match /referralCodes/{referralCodeId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.salespersonId == request.auth.uid || 
+                      isAdmin());
+      allow create: if isSalesPerson() || isAdmin();
+      allow update: if isAuthenticated() &&
+                       (resource.data.salespersonId == request.auth.uid || 
+                        isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // 推薦碼追蹤記錄 - 業務員可讀取自己的，管理員可讀寫所有
+    match /referralTracking/{trackingId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.salespersonId == request.auth.uid || 
+                      isAdmin());
+      allow create: if isAuthenticated(); // 任何人都可以創建追蹤記錄
+      allow update: if isAdmin(); // 只有管理員可以更新
+      allow delete: if isAdmin();
+    }
+    
+    // 定價群組 - 所有認證用戶可讀取，管理員可寫入
+    match /pricingGroups/{pricingGroupId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 產品價格 - 所有認證用戶可讀取，管理員可寫入
+    match /productPrices/{productPriceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 報表資料 - 只有管理員和業務員可以讀取
+    match /reports/{reportId} {
+      allow read: if isSalesPerson() || isAdmin();
+      allow write: if isAdmin();
     }
     
     // 系統設定 - 只有管理員可以讀寫

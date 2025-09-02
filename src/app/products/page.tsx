@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { productsService } from '@/lib/firebase/products';
 import { pricingEngine } from '@/lib/firebase/pricing';
@@ -57,7 +57,7 @@ interface ProductsPageState {
   maxPrice: number;
 }
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const { user, profile } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -749,5 +749,27 @@ function ProductListItem({ product }: { product: ProductWithPrice }) {
         </div>
       </Link>
     </Card>
+  );
+}
+
+// Loading 元件
+function ProductsLoading() {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 主要導出元件
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<ProductsLoading />}>
+      <ProductsPageContent />
+    </Suspense>
   );
 }

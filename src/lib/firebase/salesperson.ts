@@ -216,7 +216,7 @@ export class SalespersonService extends BaseFirebaseService<SalespersonProfile> 
   /**
    * 搜尋業務員
    */
-  async searchSalespersons(searchTerm: string, limit = 10): Promise<SalespersonProfile[]> {
+  async searchSalespersons(searchTerm: string, limitCount = 10): Promise<SalespersonProfile[]> {
     try {
       // 因為 Firestore 不支援全文搜索，這裡使用簡單的名稱搜索
       // 實際應用中可能需要使用 Algolia 或其他搜索服務
@@ -224,7 +224,7 @@ export class SalespersonService extends BaseFirebaseService<SalespersonProfile> 
         collection(db, this.collectionName),
         where('isActive', '==', true),
         orderBy('name'),
-        limit(limit)
+        limit(limitCount)
       );
       
       const querySnapshot = await getDocs(q);

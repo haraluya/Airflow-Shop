@@ -42,7 +42,7 @@ export function LoginForm({ onSuccess, redirectTo, className }: LoginFormProps) 
       } else if (redirectTo) {
         window.location.href = redirectTo;
       } else {
-        window.location.href = ROUTES.DASHBOARD;
+        window.location.href = ROUTES.ADMIN_DASHBOARD;
       }
     }
   };

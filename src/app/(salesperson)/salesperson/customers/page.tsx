@@ -62,8 +62,10 @@ export default function SalespersonCustomers() {
       
       // 載入綁定到此業務員的客戶
       const { customers: customerList } = await customersService.getCustomers({
-        salespersonId: user.uid,
-        pageSize: 100
+        filters: {
+          salespersonId: user.uid
+        },
+        limit: 100
       });
 
       setCustomers(customerList);
@@ -71,7 +73,7 @@ export default function SalespersonCustomers() {
       // 計算統計數據
       const activeCustomers = customerList.filter(c => c.status === 'active');
       const thisMonthCustomers = customerList.filter(c => {
-        const createdDate = new Date(c.createdAt);
+        const createdDate = c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt.toDate());
         const thisMonth = new Date();
         return createdDate.getMonth() === thisMonth.getMonth() && 
                createdDate.getFullYear() === thisMonth.getFullYear();
@@ -302,7 +304,7 @@ export default function SalespersonCustomers() {
                             {customer.addresses?.length > 0 && (
                               <div className="flex items-center">
                                 <MapPin className="h-3 w-3 mr-1" />
-                                {customer.addresses[0].city}
+                                {customer.addresses[0].address}
                               </div>
                             )}
                           </div>
@@ -316,7 +318,7 @@ export default function SalespersonCustomers() {
                         
                         <div className="text-right text-sm">
                           <p className="text-muted-foreground">
-                            註冊於 {new Date(customer.createdAt).toLocaleDateString('zh-TW')}
+                            註冊於 {customer.createdAt instanceof Date ? customer.createdAt.toLocaleDateString('zh-TW') : new Date(customer.createdAt.toDate()).toLocaleDateString('zh-TW')}
                           </p>
                           {customer.creditLimit && (
                             <p className="text-muted-foreground">

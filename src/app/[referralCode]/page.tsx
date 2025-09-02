@@ -10,7 +10,15 @@ import { Users, User, Phone, Mail } from 'lucide-react';
 import Link from 'next/link';
 
 // 模擬業務員資料 - 實際應該從 Firebase 獲取
-const salespeople = {
+const salespeople: Record<string, {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  lineId: string;
+  region: string;
+  avatar: string;
+}> = {
   'ABC': {
     id: 'salesperson_1',
     name: '王小明',
@@ -36,7 +44,15 @@ export default function ReferralCodePage() {
   const router = useRouter();
   const { user } = useAuth();
   const [isValidCode, setIsValidCode] = useState(false);
-  const [salesperson, setSalesperson] = useState(null);
+  const [salesperson, setSalesperson] = useState<{
+    id: string;
+    name: string;
+    phone: string;
+    email: string;
+    lineId: string;
+    region: string;
+    avatar: string;
+  } | null>(null);
   const [isBinding, setIsBinding] = useState(false);
 
   const referralCode = params.referralCode as string;

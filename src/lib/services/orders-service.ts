@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { BaseFirebaseService } from './base-service';
+import { COLLECTIONS } from '@/lib/utils/constants';
 import { 
   Order, 
   OrderStatus, 
@@ -36,7 +37,7 @@ import { CartItem } from '@/lib/types/cart';
 import { PricingService } from './pricing-service';
 
 export class OrdersService extends BaseFirebaseService {
-  protected collectionName = 'orders';
+  protected collectionName = COLLECTIONS.ORDERS;
   private pricingService: PricingService;
 
   constructor() {

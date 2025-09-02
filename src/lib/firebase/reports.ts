@@ -33,10 +33,13 @@ import {
 } from '../types/reports';
 import { Order, OrderStatus, PaymentStatus, PaymentMethod } from '../types/order';
 import { User, UserRole } from '../types/auth';
-import { ReferralClick, ReferralCode } from '../types/referral';
+import { ReferralCode } from '../types/referral';
+import { COLLECTIONS } from '@/lib/utils/constants';
 
 export class ReportsService extends BaseFirebaseService<any> {
-  protected collectionName = 'reports';
+  constructor() {
+    super('reports');
+  }
 
   // 生成銷售摘要報表
   async generateSalesSummaryReport(params: BaseReportParams): Promise<SalesSummaryReport> {
@@ -44,14 +47,14 @@ export class ReportsService extends BaseFirebaseService<any> {
     
     // 獲取指定期間的訂單
     const ordersQuery = query(
-      collection(db, 'orders'),
+      collection(db, COLLECTIONS.ORDERS),
       where('orderDate', '>=', Timestamp.fromDate(startDate)),
       where('orderDate', '<=', Timestamp.fromDate(endDate)),
       where('status', 'in', [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
     );
     
     const ordersSnapshot = await getDocs(ordersQuery);
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     // 計算基本統計
     const totalOrders = orders.length;
@@ -109,14 +112,14 @@ export class ReportsService extends BaseFirebaseService<any> {
     const { startDate, endDate } = params;
     
     const ordersQuery = query(
-      collection(db, 'orders'),
+      collection(db, COLLECTIONS.ORDERS),
       where('orderDate', '>=', Timestamp.fromDate(startDate)),
       where('orderDate', '<=', Timestamp.fromDate(endDate)),
       where('status', 'in', [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED])
     );
     
     const ordersSnapshot = await getDocs(ordersQuery);
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
     const grossProfit = totalRevenue * 0.3; // 假設30%毛利率
@@ -150,23 +153,25 @@ export class ReportsService extends BaseFirebaseService<any> {
     const { startDate, endDate } = params;
     
     // 獲取客戶資料
-    const customersQuery = query(collection(db, 'users'), where('role', '==', UserRole.CUSTOMER));
+    const customersQuery = query(collection(db, COLLECTIONS.USERS), where('role', '==', 'customer'));
     const customersSnapshot = await getDocs(customersQuery);
-    const customers = customersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as User);
+    const customers = customersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as User);
     
     // 獲取期間內的訂單
     const ordersQuery = query(
-      collection(db, 'orders'),
+      collection(db, COLLECTIONS.ORDERS),
       where('orderDate', '>=', Timestamp.fromDate(startDate)),
       where('orderDate', '<=', Timestamp.fromDate(endDate))
     );
     const ordersSnapshot = await getDocs(ordersQuery);
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     const totalCustomers = customers.length;
-    const newCustomers = customers.filter(customer => 
-      customer.createdAt && customer.createdAt >= startDate && customer.createdAt <= endDate
-    ).length;
+    const newCustomers = customers.filter(customer => {
+      if (!customer.createdAt) return false;
+      const createdDate = customer.createdAt instanceof Date ? customer.createdAt : new Date(customer.createdAt.toDate());
+      return createdDate >= startDate && createdDate <= endDate;
+    }).length;
     
     // 活躍客戶（有下單的客戶）
     const activeCustomerIds = [...new Set(orders.map(order => order.customerId))];
@@ -217,7 +222,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     
     // 獲取業務員資料
     const salespersonDoc = await getDoc(doc(db, 'users', salespersonId));
-    const salesperson = salespersonDoc.exists() ? this.convertToObject(salespersonDoc.data()) as User : null;
+    const salesperson = salespersonDoc.exists() ? this.convertTimestamps(salespersonDoc.data()) as User : null;
     
     if (!salesperson) {
       throw new Error('業務員不存在');
@@ -225,13 +230,13 @@ export class ReportsService extends BaseFirebaseService<any> {
     
     // 獲取業務員的訂單
     const ordersQuery = query(
-      collection(db, 'orders'),
+      collection(db, COLLECTIONS.ORDERS),
       where('salespersonId', '==', salespersonId),
       where('orderDate', '>=', Timestamp.fromDate(startDate)),
       where('orderDate', '<=', Timestamp.fromDate(endDate))
     );
     const ordersSnapshot = await getDocs(ordersQuery);
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
@@ -346,8 +351,8 @@ export class ReportsService extends BaseFirebaseService<any> {
   // 輔助方法：計算新客戶數量
   private async countNewCustomersInPeriod(startDate: Date, endDate: Date): Promise<number> {
     const customersQuery = query(
-      collection(db, 'users'),
-      where('role', '==', UserRole.CUSTOMER),
+      collection(db, COLLECTIONS.USERS),
+      where('role', '==', 'customer'),
       where('createdAt', '>=', Timestamp.fromDate(startDate)),
       where('createdAt', '<=', Timestamp.fromDate(endDate))
     );
@@ -434,7 +439,7 @@ export class ReportsService extends BaseFirebaseService<any> {
   private async getReferralPerformance(salespersonId: string, startDate: Date, endDate: Date) {
     // 獲取業務員的推薦碼
     const referralCodesQuery = query(
-      collection(db, 'referralCodes'),
+      collection(db, COLLECTIONS.REFERRAL_CODES),
       where('salespersonId', '==', salespersonId),
       where('isActive', '==', true)
     );
@@ -481,12 +486,12 @@ export class ReportsService extends BaseFirebaseService<any> {
   // 輔助方法：獲取期間統計
   private async getStatsForPeriod(startDate: Date, endDate: Date) {
     const ordersQuery = query(
-      collection(db, 'orders'),
+      collection(db, COLLECTIONS.ORDERS),
       where('orderDate', '>=', Timestamp.fromDate(startDate)),
       where('orderDate', '<=', Timestamp.fromDate(endDate))
     );
     const ordersSnapshot = await getDocs(ordersQuery);
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
@@ -496,19 +501,20 @@ export class ReportsService extends BaseFirebaseService<any> {
       orders: totalOrders,
       revenue: totalRevenue,
       customers: customerIds.length,
-      conversion: 0.025 // 模擬轉換率
+      conversion: 0.025, // 模擬轉換率
+      growth: Math.random() * 0.2 - 0.1 // 模擬成長率 -10% 到 +10%
     };
   }
 
   // 輔助方法：獲取總計統計
   private async getTotalStats() {
     const [customersSnapshot, productsSnapshot, ordersSnapshot] = await Promise.all([
-      getDocs(query(collection(db, 'users'), where('role', '==', UserRole.CUSTOMER))),
+      getDocs(query(collection(db, COLLECTIONS.USERS), where('role', '==', 'customer'))),
       getDocs(collection(db, 'products')),
-      getDocs(collection(db, 'orders'))
+      getDocs(collection(db, COLLECTIONS.ORDERS))
     ]);
     
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
     
     return {
@@ -522,12 +528,12 @@ export class ReportsService extends BaseFirebaseService<any> {
   // 輔助方法：獲取趨勢資料
   private async getTrendsData(startDate: Date, endDate: Date) {
     const ordersQuery = query(
-      collection(db, 'orders'),
+      collection(db, COLLECTIONS.ORDERS),
       where('orderDate', '>=', Timestamp.fromDate(startDate)),
       where('orderDate', '<=', Timestamp.fromDate(endDate))
     );
     const ordersSnapshot = await getDocs(ordersQuery);
-    const orders = ordersSnapshot.docs.map(doc => this.convertToObject(doc.data()) as Order);
+    const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     // 按日統計
     const dailyStats = this.groupOrdersByDay(orders, startDate, endDate);

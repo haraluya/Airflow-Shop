@@ -26,7 +26,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { useAuth } from '@/lib/providers/auth-provider';
-import { Customer } from '@/lib/types/customer';
+import { CustomerProfile } from '@/lib/types/auth';
 import { Product } from '@/lib/types/product';
 import { Address } from '@/lib/types/common';
 import { PaymentMethod, DeliveryMethod, CartToOrderData } from '@/lib/types/order';
@@ -55,8 +55,8 @@ export default function ProxyOrderPage() {
   
   // 客戶搜尋
   const [customerQuery, setCustomerQuery] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   
   // 商品搜尋
@@ -78,10 +78,12 @@ export default function ProxyOrderPage() {
     
     try {
       setIsSearchingCustomers(true);
-      const result = await customersService.searchCustomers({
-        query,
-        status: ['active'],
-        pageSize: 10
+      const result = await customersService.getCustomers({
+        filters: {
+          search: query,
+          status: 'ACTIVE'
+        },
+        limit: 10
       });
       setCustomers(result.customers);
     } catch (error) {
@@ -98,10 +100,12 @@ export default function ProxyOrderPage() {
     
     try {
       setIsSearchingProducts(true);
-      const result = await productsService.searchProducts({
-        query,
-        isActive: true,
-        pageSize: 20
+      const result = await productsService.getProducts({
+        filters: {
+          search: query,
+          status: 'active'
+        },
+        limit: 20
       });
       setProducts(result.products);
     } catch (error) {
@@ -259,7 +263,8 @@ export default function ProxyOrderPage() {
         calculatedPrice: {
           price: item.unitPrice,
           originalPrice: item.product.basePrice,
-          discount: item.product.basePrice - item.unitPrice
+          discountAmount: item.product.basePrice - item.unitPrice,
+          discountPercentage: ((item.product.basePrice - item.unitPrice) / item.product.basePrice) * 100
         },
         addedAt: new Date(),
         updatedAt: new Date()
@@ -319,7 +324,7 @@ export default function ProxyOrderPage() {
 
       {/* 步驟指示器 */}
       <div className="flex items-center space-x-4">
-        <div className={`flex items-center ${step === 'customer' ? 'text-primary' : step !== 'customer' && selectedCustomer ? 'text-green-600' : 'text-muted-foreground'}`}>
+        <div className={`flex items-center ${step === 'customer' ? 'text-primary' : selectedCustomer ? 'text-green-600' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'customer' ? 'bg-primary text-primary-foreground' : selectedCustomer ? 'bg-green-100 text-green-800' : 'bg-muted'}`}>
             {selectedCustomer ? <CheckCircle className="h-4 w-4" /> : '1'}
           </div>
@@ -477,7 +482,7 @@ export default function ProxyOrderPage() {
                               <Button
                                 size="sm"
                                 onClick={() => addToCart(product)}
-                                disabled={!product.inStock}
+                                disabled={product.stock <= 0}
                               >
                                 <Plus className="h-4 w-4 mr-1" />
                                 加入

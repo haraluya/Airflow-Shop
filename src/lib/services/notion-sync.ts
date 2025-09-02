@@ -326,9 +326,11 @@ export class NotionSyncService {
       const notionMap = new Map(notionData.map(record => [this.extractFirebaseId(record), record]));
 
       // 處理所有唯一的記錄 ID
-      const allIds = new Set([...firebaseMap.keys(), ...notionMap.keys()]);
+      const firebaseIds = Array.from(firebaseMap.keys());
+      const notionIds = Array.from(notionMap.keys());
+      const allIds = new Set([...firebaseIds, ...notionIds]);
 
-      for (const id of allIds) {
+      for (const id of Array.from(allIds)) {
         try {
           const firebaseRecord = firebaseMap.get(id);
           const notionRecord = notionMap.get(id);

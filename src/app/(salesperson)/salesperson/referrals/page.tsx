@@ -364,7 +364,7 @@ export default function SalespersonReferrals() {
                             {code.description || '無描述'}
                           </p>
                           <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                            <span>建立於 {new Date(code.createdAt).toLocaleDateString('zh-TW')}</span>
+                            <span>建立於 {code.createdAt instanceof Date ? code.createdAt.toLocaleDateString('zh-TW') : new Date(code.createdAt.toDate()).toLocaleDateString('zh-TW')}</span>
                             {code.lastUsedAt && (
                               <span>最後使用 {new Date(code.lastUsedAt).toLocaleDateString('zh-TW')}</span>
                             )}

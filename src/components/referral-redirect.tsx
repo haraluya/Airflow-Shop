@@ -12,7 +12,7 @@ export function ReferralRedirect() {
     // 檢查用戶是否有綁定推薦碼
     if (user && profile) {
       // 如果用戶有綁定的推薦碼，自動轉跳到推薦碼首頁
-      const savedReferralCode = localStorage.getItem('userReferralCode') || profile.referralCode;
+      const savedReferralCode = localStorage.getItem('userReferralCode') || ('referralCode' in profile ? profile.referralCode : null);
       
       if (savedReferralCode) {
         router.replace(`/${savedReferralCode}`);
