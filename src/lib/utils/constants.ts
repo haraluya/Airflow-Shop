@@ -62,7 +62,9 @@ export const COLLECTIONS = {
   PRODUCTS: 'products',
   ORDERS: 'orders',
   CATEGORIES: 'categories',
+  BRANDS: 'brands',
   PRICING_GROUPS: 'pricingGroups',
+  PRODUCT_PRICES: 'productPrices',
   REFERRAL_CODES: 'referralCodes',
 } as const;
 
