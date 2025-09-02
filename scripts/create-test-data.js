@@ -243,17 +243,21 @@ async function createTestAccounts() {
       console.log(`✅ 建立 Auth 帳戶: ${account.email}`);
       
       // 建立用戶 Profile 文件
+      const profileData = {
+        ...account.profile,
+        id: userCredential.user.uid,
+        uid: userCredential.user.uid,
+        email: account.email
+      };
+
       if (account.role === 'admin') {
-        await setDoc(doc(db, 'users', userCredential.user.uid), {
-          ...account.profile,
-          id: userCredential.user.uid
-        });
+        // 管理員只存在 users 集合
+        await setDoc(doc(db, 'users', userCredential.user.uid), profileData);
         console.log(`✅ 建立管理員 Profile: ${account.email}`);
       } else {
-        await setDoc(doc(db, 'customers', userCredential.user.uid), {
-          ...account.profile,
-          id: userCredential.user.uid
-        });
+        // 客戶同時存在 users 和 customers 集合
+        await setDoc(doc(db, 'users', userCredential.user.uid), profileData);
+        await setDoc(doc(db, 'customers', userCredential.user.uid), profileData);
         console.log(`✅ 建立客戶 Profile: ${account.email}`);
       }
       

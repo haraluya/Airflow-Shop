@@ -34,12 +34,12 @@ export default function CartPage() {
             </p>
             <div className="space-x-4">
               <Button asChild>
-                <Link href="/login">
+                <Link href="/login" className="flex items-center justify-center">
                   登入帳戶
                 </Link>
               </Button>
               <Button variant="outline" asChild>
-                <Link href="/products">
+                <Link href="/products" className="flex items-center justify-center">
                   繼續瀏覽商品
                 </Link>
               </Button>
@@ -99,7 +99,7 @@ export default function CartPage() {
           {/* 頁面標頭 */}
           <div className="flex items-center gap-4 mb-8">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/products">
+              <Link href="/products" className="flex items-center">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 繼續購物
               </Link>

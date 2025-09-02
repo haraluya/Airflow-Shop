@@ -116,7 +116,7 @@ export function CartSummary({
         {showCheckoutButton && (
           <div className="space-y-2 pt-4">
             <Button asChild className="w-full" size="lg">
-              <Link href="/checkout">
+              <Link href="/checkout" className="flex items-center justify-center">
                 <ShoppingCart className="mr-2 h-4 w-4" />
                 前往結帳
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -124,7 +124,7 @@ export function CartSummary({
             </Button>
             
             <Button variant="outline" asChild className="w-full">
-              <Link href="/products">
+              <Link href="/products" className="flex items-center justify-center">
                 繼續購物
               </Link>
             </Button>

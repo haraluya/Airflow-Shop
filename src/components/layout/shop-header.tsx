@@ -145,13 +145,13 @@ export function ShopHeader() {
           ) : (
             <div className="flex items-center space-x-2">
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/login">
+                <Link href="/login" className="flex items-center">
                   <LogIn className="mr-2 h-4 w-4" />
                   登入
                 </Link>
               </Button>
               <Button size="sm" asChild>
-                <Link href="/register">
+                <Link href="/register" className="flex items-center">
                   <UserPlus className="mr-2 h-4 w-4" />
                   註冊
                 </Link>

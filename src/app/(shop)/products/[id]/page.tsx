@@ -201,7 +201,7 @@ export default function ProductDetailPage() {
               請檢查商品連結是否正確，或回到商品列表瀏覽其他商品
             </p>
             <Button asChild>
-              <Link href="/products">
+              <Link href="/products" className="flex items-center">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 回到商品列表
               </Link>
