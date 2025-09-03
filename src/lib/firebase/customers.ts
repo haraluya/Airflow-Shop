@@ -16,7 +16,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { COLLECTIONS, USER_STATUS } from '@/lib/utils/constants';
-import { CustomerProfile, Address } from '@/lib/types/auth';
+import { CustomerProfile } from '@/lib/types/auth';
+import { Address } from '@/lib/types/common';
 import { BaseFirebaseService } from './base';
 
 export interface CustomerFilters {
@@ -39,6 +40,7 @@ export interface CustomerUpdateData {
   salespersonId?: string;
   creditLimit?: number;
   paymentTerms?: string;
+  referralCode?: string;
 }
 
 export interface CreateCustomerData {
@@ -81,18 +83,19 @@ class CustomersService extends BaseFirebaseService<CustomerProfile> {
         taxId: customerData.taxId,
         addresses: [{
           id: Math.random().toString(36).substr(2, 9),
-          type: 'delivery',
+          label: '預設地址',
+          recipient: customerData.contactPerson,
+          phone: customerData.phoneNumber,
           address: customerData.address,
-          isDefault: true,
-          createdAt: now.toDate()
+          isDefault: true
         }],
         source: customerData.source,
         salespersonId: customerData.salespersonId,
         notes: customerData.notes,
         creditLimit: customerData.creditLimit || 0,
         paymentTerms: customerData.paymentTerms || '月結30天',
-        createdAt: now.toDate(),
-        updatedAt: now.toDate(),
+        createdAt: now,
+        updatedAt: now,
         lastLoginAt: undefined
       };
 

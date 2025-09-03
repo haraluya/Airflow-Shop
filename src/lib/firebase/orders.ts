@@ -31,7 +31,13 @@ import {
 } from '@/lib/types/order';
 import { Cart } from '@/lib/types/cart';
 import { cartService } from './cart';
+import { productsService } from './products';
 import { customersService } from './customers';
+import { notificationService } from './notifications';
+import { 
+  NotificationRecipient, 
+  NOTIFICATION_TYPE 
+} from '@/lib/types/notification';
 
 class OrdersService extends BaseFirebaseService<Order> {
   private orderListeners = new Map<string, () => void>();
@@ -56,6 +62,49 @@ class OrdersService extends BaseFirebaseService<Order> {
   /**
    * 從購物車建立訂單
    */
+  /**
+   * 檢查購物車商品庫存
+   */
+  private async checkCartStock(cart: Cart): Promise<{ success: boolean; message?: string; insufficientItems?: string[] }> {
+    const insufficientItems: string[] = [];
+    
+    for (const cartItem of cart.items) {
+      try {
+        const product = await productsService.getProductById(cartItem.productId);
+        if (!product) {
+          insufficientItems.push(`商品 "${cartItem.productName}" 不存在`);
+          continue;
+        }
+        
+        // 檢查是否啟用
+        if (product.status !== 'active' || !product.isVisible) {
+          insufficientItems.push(`商品 "${cartItem.productName}" 已下架`);
+          continue;
+        }
+        
+        // 檢查庫存（如果商品有庫存追蹤）
+        if (product.trackStock && product.stock !== undefined) {
+          if (product.stock < cartItem.quantity) {
+            insufficientItems.push(`商品 "${cartItem.productName}" 庫存不足（需要 ${cartItem.quantity}，目前只有 ${product.stock}）`);
+          }
+        }
+      } catch (error) {
+        console.error(`檢查商品 ${cartItem.productId} 庫存失敗:`, error);
+        insufficientItems.push(`無法檢查商品 "${cartItem.productName}" 的庫存狀態`);
+      }
+    }
+    
+    if (insufficientItems.length > 0) {
+      return {
+        success: false,
+        message: '部分商品庫存不足或不可用',
+        insufficientItems
+      };
+    }
+    
+    return { success: true };
+  }
+
   async createOrderFromCart(
     userId: string,
     cartToOrderData: CartToOrderData,
@@ -68,6 +117,15 @@ class OrdersService extends BaseFirebaseService<Order> {
         return {
           success: false,
           message: '購物車為空或不存在'
+        };
+      }
+
+      // 檢查庫存
+      const stockCheck = await this.checkCartStock(cart);
+      if (!stockCheck.success) {
+        return {
+          success: false,
+          message: stockCheck.message || '庫存檢查失敗'
         };
       }
 
@@ -165,6 +223,22 @@ class OrdersService extends BaseFirebaseService<Order> {
 
       // 執行批次寫入
       await batch.commit();
+
+      // 訂單創建成功後，自動扣減庫存
+      try {
+        await this.updateProductStock(cart);
+      } catch (stockError) {
+        console.error('扣減庫存失敗，但訂單已建立:', stockError);
+        // 注意：訂單已經建立成功，庫存扣減失敗需要記錄但不影響訂單結果
+      }
+
+      // 發送訂單創建通知
+      try {
+        await this.sendOrderCreatedNotification(orderData, orderId, customerName, customerEmail);
+      } catch (notificationError) {
+        console.error('發送訂單通知失敗，但訂單已建立:', notificationError);
+        // 注意：訂單已經建立成功，通知失敗需要記錄但不影響訂單結果
+      }
 
       return {
         success: true,
@@ -474,6 +548,14 @@ class OrdersService extends BaseFirebaseService<Order> {
 
       await updateDoc(doc(db, COLLECTIONS.ORDERS, orderId), updateData);
 
+      // 發送狀態更新通知
+      try {
+        await this.sendOrderStatusNotification(orderId, status);
+      } catch (notificationError) {
+        console.error('發送狀態更新通知失敗:', notificationError);
+        // 訂單狀態已更新成功，通知失敗不影響結果
+      }
+
       return {
         success: true,
         message: '訂單狀態更新成功',
@@ -644,6 +726,184 @@ class OrdersService extends BaseFirebaseService<Order> {
         success: false,
         message: '取消訂單失敗'
       };
+    }
+  }
+
+  /**
+   * 自動扣減商品庫存
+   * @private
+   */
+  private async updateProductStock(cart: Cart): Promise<void> {
+    try {
+      // 使用批次寫入來確保原子性
+      const batch = writeBatch(db);
+
+      for (const cartItem of cart.items) {
+        const productRef = doc(db, COLLECTIONS.PRODUCTS, cartItem.productId);
+        
+        // 取得最新的商品資料
+        const productDoc = await getDoc(productRef);
+        if (!productDoc.exists()) {
+          console.error(`商品不存在: ${cartItem.productId}`);
+          continue;
+        }
+
+        const productData = productDoc.data();
+        const currentStock = productData.stock || 0;
+        const newStock = Math.max(0, currentStock - cartItem.quantity);
+
+        // 更新商品庫存
+        batch.update(productRef, {
+          stock: newStock,
+          updatedAt: Timestamp.now()
+        });
+
+        console.log(`商品 ${cartItem.productName} 庫存由 ${currentStock} 扣減至 ${newStock}`);
+      }
+
+      // 執行批次更新
+      await batch.commit();
+      console.log('所有商品庫存扣減完成');
+
+    } catch (error) {
+      console.error('扣減商品庫存失敗:', error);
+      throw new Error('庫存扣減處理失敗');
+    }
+  }
+
+  /**
+   * 發送訂單創建通知
+   * @private
+   */
+  private async sendOrderCreatedNotification(
+    orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>,
+    orderId: string,
+    customerName: string,
+    customerEmail: string
+  ): Promise<void> {
+    try {
+      const recipients: NotificationRecipient[] = [
+        {
+          type: 'customer',
+          id: orderData.customerId,
+          name: customerName,
+          email: customerEmail
+        }
+      ];
+
+      // 如果有指定業務員，也通知業務員
+      if (orderData.salespersonId) {
+        // TODO: 取得業務員資料
+        recipients.push({
+          type: 'salesperson',
+          id: orderData.salespersonId,
+          name: 'Business Representative', // 可以從資料庫取得實際姓名
+          email: '' // 可以從資料庫取得實際信箱
+        });
+      }
+
+      await notificationService.sendOrderNotification(
+        NOTIFICATION_TYPE.ORDER_CREATED,
+        orderId,
+        orderData.orderNumber,
+        recipients,
+        { 
+          orderId,
+          totalAmount: orderData.pricing.totalAmount,
+          itemCount: orderData.items.length
+        }
+      );
+
+      console.log(`訂單 ${orderData.orderNumber} 創建通知已發送`);
+    } catch (error) {
+      console.error('發送訂單創建通知失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 發送訂單狀態更新通知
+   * @private
+   */
+  private async sendOrderStatusNotification(orderId: string, status: OrderStatus): Promise<void> {
+    try {
+      const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) return;
+      
+      const order = {
+        id: orderDoc.id,
+        ...this.convertTimestamps(orderDoc.data()),
+        orderDate: orderDoc.data().orderDate?.toDate() || new Date(),
+        confirmedAt: orderDoc.data().confirmedAt?.toDate(),
+        shippedAt: orderDoc.data().shippedAt?.toDate(),
+        deliveredAt: orderDoc.data().deliveredAt?.toDate(),
+        delivery: {
+          ...orderDoc.data().delivery,
+          estimatedDeliveryDate: orderDoc.data().delivery?.estimatedDeliveryDate?.toDate(),
+          actualDeliveryDate: orderDoc.data().delivery?.actualDeliveryDate?.toDate()
+        },
+        payment: {
+          ...orderDoc.data().payment,
+          dueDate: orderDoc.data().payment?.dueDate?.toDate(),
+          paidAt: orderDoc.data().payment?.paidAt?.toDate()
+        }
+      } as Order;
+
+      // 根據訂單狀態決定通知類型
+      let notificationType: string;
+      switch (status) {
+        case OrderStatus.CONFIRMED:
+          notificationType = NOTIFICATION_TYPE.ORDER_CONFIRMED;
+          break;
+        case OrderStatus.SHIPPED:
+          notificationType = NOTIFICATION_TYPE.ORDER_SHIPPED;
+          break;
+        case OrderStatus.DELIVERED:
+          notificationType = NOTIFICATION_TYPE.ORDER_DELIVERED;
+          break;
+        case OrderStatus.CANCELLED:
+          notificationType = NOTIFICATION_TYPE.ORDER_CANCELLED;
+          break;
+        default:
+          return; // 其他狀態不發送通知
+      }
+
+      const recipients: NotificationRecipient[] = [
+        {
+          type: 'customer',
+          id: order.customerId,
+          name: order.customerName,
+          email: order.customerEmail
+        }
+      ];
+
+      // 如果有指定業務員，也通知業務員
+      if (order.salespersonId) {
+        recipients.push({
+          type: 'salesperson',
+          id: order.salespersonId,
+          name: 'Business Representative',
+          email: ''
+        });
+      }
+
+      await notificationService.sendOrderNotification(
+        notificationType as any,
+        orderId,
+        order.orderNumber,
+        recipients,
+        { 
+          orderId,
+          estimatedDays: status === OrderStatus.SHIPPED ? 3 : undefined
+        }
+      );
+
+      console.log(`訂單 ${order.orderNumber} 狀態更新通知已發送: ${status}`);
+    } catch (error) {
+      console.error('發送訂單狀態更新通知失敗:', error);
+      throw error;
     }
   }
 }

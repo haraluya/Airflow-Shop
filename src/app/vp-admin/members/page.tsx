@@ -236,7 +236,7 @@ export default function MembersManagePage() {
     try {
       await adminService.deleteMemberWithAuth(memberId)
       toast.success('成員已刪除（Firestore 資料）')
-      toast.info('Firebase Auth 帳號可能需要手動刪除')
+      toast.success('Firebase Auth 帳號可能需要手動刪除', { duration: 3000 })
       loadMembers()
     } catch (error) {
       console.error('刪除成員失敗:', error)

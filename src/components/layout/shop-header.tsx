@@ -138,6 +138,16 @@ export function ShopHeader() {
               <span className="hidden sm:inline-block text-sm">
                 {profile.displayName || profile.email}
               </span>
+              <Link href="/profile">
+                <Button variant="ghost" size="sm">
+                  <User className="h-5 w-5" />
+                </Button>
+              </Link>
+              <Link href="/orders">
+                <Button variant="ghost" size="sm">
+                  <Package className="h-5 w-5" />
+                </Button>
+              </Link>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-5 w-5" />
               </Button>

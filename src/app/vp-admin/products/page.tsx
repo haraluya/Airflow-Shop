@@ -92,7 +92,7 @@ interface Product {
 }
 
 type ViewMode = 'grid' | 'table'
-type SortField = 'name' | 'price' | 'category' | 'sales' | 'createdAt' | 'stockQuantity'
+type SortField = 'name' | 'price' | 'category' | 'sales' | 'createdAt' | 'updatedAt' | 'stockQuantity'
 type SortOrder = 'asc' | 'desc'
 
 export default function ProductsPage() {
@@ -349,6 +349,7 @@ export default function ProductsPage() {
       const product = {
         id: newId,
         ...productData,
+        descriptionHtml: '', // 空的 HTML 描述
         viewCount: 0,
         salesCount: 0
       }

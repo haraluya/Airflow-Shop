@@ -98,6 +98,9 @@ export interface Subdomain {
   customSettings?: {
     welcomeMessage?: string
     showContact?: boolean
+    lineId?: string
+    lineUrl?: string
+    introduction?: string
     customStyling?: {
       primaryColor?: string
       logoUrl?: string

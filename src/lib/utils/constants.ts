@@ -110,6 +110,9 @@ export const COLLECTIONS = {
   REFERRAL_CODES: 'referralCodes',
   REFERRAL_TRACKING: 'referralTracking',
   CARTS: 'carts',
+  NOTIFICATIONS: 'notifications',
+  NOTIFICATION_SETTINGS: 'notificationSettings',
+  NOTIFICATION_TEMPLATES: 'notificationTemplates',
 } as const;
 
 // 驗證常數

@@ -185,6 +185,93 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false; // 統計資料只能由後端函數更新
     }
+
+    // 通知資料 - 用戶可以讀取自己的通知，管理員可以讀寫所有
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.recipient.id == request.auth.uid || 
+                      isAdmin());
+      allow create: if isAdmin(); // 只有管理員和系統可以創建通知
+      allow update: if isAuthenticated() &&
+                       (resource.data.recipient.id == request.auth.uid || 
+                        isAdmin()); // 用戶可以標記自己的通知為已讀
+      allow delete: if isAdmin();
+    }
+
+    // 通知設定 - 用戶可以讀寫自己的設定，管理員可以讀寫所有
+    match /notificationSettings/{settingId} {
+      allow read, write: if isAuthenticated() &&
+                            (resource.data.userId == request.auth.uid || 
+                             isAdmin());
+      allow create: if isAuthenticated(); // 用戶可以創建自己的設定
+    }
+
+    // 通知模板 - 所有認證用戶可讀取，管理員可寫入
+    match /notificationTemplates/{templateId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 媒體檔案 - 認證用戶可讀取，管理員可寫入
+    match /media/{mediaId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 系統日誌 - 只有管理員可以讀取
+    match /systemLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // 系統日誌只能由後端函數寫入
+    }
+
+    // 會員資料（用於前台系統）
+    match /members/{memberId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.uid == request.auth.uid || 
+                      isAdmin());
+      allow write: if isAuthenticated() &&
+                      (resource.data.uid == request.auth.uid || 
+                       isAdmin());
+      allow create: if isAuthenticated();
+    }
+
+    // 地址資料 - 用戶可以讀寫自己的地址，管理員可以讀寫所有
+    match /addresses/{addressId} {
+      allow read, write: if isAuthenticated() &&
+                            (resource.data.userId == request.auth.uid || 
+                             isAdmin());
+      allow create: if isAuthenticated();
+    }
+
+    // 評價與評論 - 用戶可以讀寫自己的評價，所有人可讀取
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+                       (resource.data.userId == request.auth.uid || 
+                        isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 收藏清單 - 用戶可以讀寫自己的收藏
+    match /wishlists/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // 優惠券 - 所有認證用戶可讀取，管理員可寫入
+    match /coupons/{couponId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 優惠券使用記錄 - 用戶可讀取自己的記錄，管理員可讀寫所有
+    match /couponUsages/{usageId} {
+      allow read: if isAuthenticated() &&
+                     (resource.data.userId == request.auth.uid || 
+                      isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
     
     // 預設拒絕所有其他存取
     match /{document=**} {
