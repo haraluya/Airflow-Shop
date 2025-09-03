@@ -324,6 +324,103 @@ export class SalespersonService extends BaseFirebaseService<SalespersonProfile> 
       throw error;
     }
   }
+
+  /**
+   * 根據子網域取得業務員檔案
+   */
+  async getSalespersonBySubdomain(subdomain: string): Promise<SalespersonProfile | null> {
+    try {
+      const q = query(
+        collection(db, this.collectionName),
+        where('subdomain', '==', subdomain.toLowerCase()),
+        where('subdomainEnabled', '==', true),
+        where('isActive', '==', true),
+        limit(1)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return this.convertTimestamps(doc.data()) as SalespersonProfile;
+      }
+      return null;
+    } catch (error) {
+      console.error('根據子網域取得業務員檔案時發生錯誤:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 檢查子網域是否可用
+   */
+  async isSubdomainAvailable(subdomain: string, excludeId?: string): Promise<boolean> {
+    try {
+      let q = query(
+        collection(db, this.collectionName),
+        where('subdomain', '==', subdomain.toLowerCase())
+      );
+
+      const querySnapshot = await getDocs(q);
+      
+      // 如果是更新現有業務員，排除自己
+      if (excludeId && !querySnapshot.empty) {
+        const docs = querySnapshot.docs.filter(doc => doc.id !== excludeId);
+        return docs.length === 0;
+      }
+      
+      return querySnapshot.empty;
+    } catch (error) {
+      console.error('檢查子網域可用性時發生錯誤:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 設定業務員子網域
+   */
+  async setSubdomain(id: string, subdomain: string, enabled = true): Promise<void> {
+    try {
+      // 先檢查子網域是否可用
+      const isAvailable = await this.isSubdomainAvailable(subdomain, id);
+      if (!isAvailable) {
+        throw new Error(`子網域 "${subdomain}" 已被使用`);
+      }
+
+      await this.updateSalesperson(id, { 
+        subdomain: subdomain.toLowerCase(),
+        subdomainEnabled: enabled 
+      });
+    } catch (error) {
+      console.error('設定業務員子網域時發生錯誤:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 取得所有已使用的子網域
+   */
+  async getAllSubdomains(): Promise<string[]> {
+    try {
+      const q = query(
+        collection(db, this.collectionName),
+        where('subdomain', '!=', null)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      const subdomains: string[] = [];
+      querySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.subdomain) {
+          subdomains.push(data.subdomain);
+        }
+      });
+      
+      return subdomains;
+    } catch (error) {
+      console.error('取得所有子網域時發生錯誤:', error);
+      throw error;
+    }
+  }
 }
 
 // 建立並匯出服務實例

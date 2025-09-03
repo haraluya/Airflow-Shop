@@ -26,7 +26,7 @@ export interface CustomerProfile extends User {
   addresses: Address[];              // 多送貨地址
   pricingGroupId?: string;           // 價格群組ID
   salespersonId?: string;            // 綁定業務員ID
-  referralCode?: string;             // 推薦碼
+  referralCode?: string;             // 推薦碼 (向後相容，實際使用子網域)
   notes?: string;                    // 管理員備註
   source?: string;                   // 客戶來源說明
   creditLimit?: number;              // 信用額度
@@ -44,6 +44,8 @@ export interface SalespersonProfile extends User {
   commissionRate?: number;           // 佣金比例
   isActive: boolean;                 // 是否在職
   managerId?: string;                // 主管ID
+  subdomain?: string;                // 專屬子網域名稱 (如: wang, lee)
+  subdomainEnabled?: boolean;        // 子網域是否啟用
 }
 
 // 管理員檔案擴充
