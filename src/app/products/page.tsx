@@ -2,51 +2,28 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { productsService } from '@/lib/firebase/products';
-import { pricingEngine } from '@/lib/firebase/pricing';
+import { productsOptimizedService, ProductsQuery } from '@/lib/services/products-optimized';
 import { useAuth } from '@/lib/providers/auth-provider';
-import { Product } from '@/lib/types/product';
-import { Card } from '@/components/ui/card';
 import { PublicHeader } from '@/components/layout/public-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { useCart } from '@/lib/hooks/use-cart';
+import { VirtualizedProductList } from '@/components/products/virtualized-product-list';
 import { 
   Search,
   Grid3X3,
   List,
   Package,
-  ShoppingCart,
-  Eye,
-  Heart,
-  Lock,
-  LogIn,
+  Loader2
 } from 'lucide-react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { debounce } from 'lodash';
 
-interface ProductWithPrice extends Product {
-  calculatedPrice?: {
-    price: number;
-    originalPrice: number;
-    discountAmount: number;
-    discountPercentage: number;
-    appliedRule?: string;
-  };
-}
-
 interface ProductsPageState {
-  products: ProductWithPrice[];
-  allProducts: ProductWithPrice[];
-  isLoading: boolean;
   searchTerm: string;
   sortBy: string;
+  sortDirection: 'asc' | 'desc';
   viewMode: 'grid' | 'list';
-  currentPage: number;
-  totalPages: number;
   error: string | null;
+  productsCount: number;
   filters: {
     categoryIds: string[];
     brandIds: string[];
@@ -55,7 +32,6 @@ interface ProductsPageState {
     inStock: boolean;
     isFeatured: boolean;
   };
-  maxPrice: number;
 }
 
 function ProductsPageContent() {
@@ -64,15 +40,12 @@ function ProductsPageContent() {
   const router = useRouter();
   
   const [state, setState] = useState<ProductsPageState>({
-    products: [],
-    allProducts: [],
-    isLoading: true,
     searchTerm: searchParams?.get('search') || '',
-    sortBy: 'name-asc',
+    sortBy: 'name',
+    sortDirection: 'asc',
     viewMode: 'grid',
-    currentPage: 1,
-    totalPages: 1,
     error: null,
+    productsCount: 0,
     filters: {
       categoryIds: searchParams?.get('category') ? [searchParams.get('category')!] : [],
       brandIds: searchParams?.get('brand') ? [searchParams.get('brand')!] : [],
@@ -80,210 +53,54 @@ function ProductsPageContent() {
       tags: [],
       inStock: false,
       isFeatured: false
-    },
-    maxPrice: 10000
+    }
   });
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
-  useEffect(() => {
-    applyFiltersAndSort();
-  }, [state.allProducts, state.searchTerm, state.filters, state.sortBy, state.currentPage]);
-
-  const loadProducts = async () => {
-    try {
-      setState(prev => ({ ...prev, isLoading: true }));
-      
-      // 載入所有商品
-      const result = await productsService.getProducts({
-        limit: 1000, // 載入所有商品以支援客戶端篩選
-        filters: {
-          status: 'active',
-          isVisible: true
-        }
-      });
-
-      // 計算每個商品的價格 (只對已登入用戶計算)
-      const productsWithPrices = await Promise.all(
-        result.products.map(async (product) => {
-          if (!user) {
-            // 未登入用戶不計算價格
-            return {
-              ...product,
-              calculatedPrice: undefined
-            };
-          }
-
-          try {
-            const priceResult = await pricingEngine.calculatePrice({
-              productId: product.id,
-              customerId: profile?.id,
-              quantity: 1,
-              basePrice: product.basePrice
-            });
-
-            return {
-              ...product,
-              calculatedPrice: priceResult
-            };
-          } catch (error) {
-            console.error('計算商品價格失敗:', product.id, error);
-            return {
-              ...product,
-              calculatedPrice: {
-                price: product.basePrice,
-                originalPrice: product.basePrice,
-                discountAmount: 0,
-                discountPercentage: 0
-              }
-            };
-          }
-        })
-      );
-
-      // 計算最高價格 (未登入用戶使用基礎價格)
-      const maxPrice = Math.max(...productsWithPrices.map(p => 
-        user ? (p.calculatedPrice?.price || p.basePrice) : p.basePrice
-      ));
-
-      setState(prev => ({
-        ...prev,
-        allProducts: productsWithPrices,
-        products: productsWithPrices,
-        maxPrice: Math.ceil(maxPrice / 100) * 100,
-        filters: {
-          ...prev.filters,
-          priceRange: [0, Math.ceil(maxPrice / 100) * 100]
-        },
-        isLoading: false,
-        error: null
-      }));
-    } catch (error) {
-      console.error('載入商品失敗:', error);
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: '載入商品失敗'
-      }));
-    }
+  // 生成查詢參數
+  const query: ProductsQuery = {
+    filters: {
+      status: 'active',
+      isVisible: true,
+      categoryId: state.filters.categoryIds[0],
+      brandId: state.filters.brandIds[0],
+      priceRange: state.filters.priceRange,
+      inStock: state.filters.inStock,
+      isFeatured: state.filters.isFeatured,
+      tags: state.filters.tags
+    },
+    sortBy: state.sortBy as any,
+    sortDirection: state.sortDirection,
+    searchTerm: state.searchTerm || undefined
   };
 
-  const applyFiltersAndSort = () => {
-    let filteredProducts = [...state.allProducts];
-
-    // 搜尋篩選
-    if (state.searchTerm) {
-      const searchLower = state.searchTerm.toLowerCase();
-      filteredProducts = filteredProducts.filter(product =>
-        product.name.toLowerCase().includes(searchLower) ||
-        product.sku.toLowerCase().includes(searchLower) ||
-        product.description?.toLowerCase().includes(searchLower) ||
-        product.tags.some(tag => tag.toLowerCase().includes(searchLower))
-      );
-    }
-
-    // 分類篩選
-    if (state.filters.categoryIds.length > 0) {
-      filteredProducts = filteredProducts.filter(product =>
-        state.filters.categoryIds.includes(product.categoryId)
-      );
-    }
-
-    // 品牌篩選
-    if (state.filters.brandIds.length > 0) {
-      filteredProducts = filteredProducts.filter(product =>
-        product.brandId && state.filters.brandIds.includes(product.brandId)
-      );
-    }
-
-    // 價格篩選 (未登入用戶使用基礎價格)
-    filteredProducts = filteredProducts.filter(product => {
-      const price = user ? (product.calculatedPrice?.price || product.basePrice) : product.basePrice;
-      return price >= state.filters.priceRange[0] && price <= state.filters.priceRange[1];
-    });
-
-    // 庫存篩選
-    if (state.filters.inStock) {
-      filteredProducts = filteredProducts.filter(product => product.stock > 0);
-    }
-
-    // 精選篩選
-    if (state.filters.isFeatured) {
-      filteredProducts = filteredProducts.filter(product => product.isFeatured);
-    }
-
-    // 排序
-    filteredProducts.sort((a, b) => {
-      switch (state.sortBy) {
-        case 'name-asc':
-          return a.name.localeCompare(b.name);
-        case 'name-desc':
-          return b.name.localeCompare(a.name);
-        case 'price-asc':
-          const priceA = user ? (a.calculatedPrice?.price || a.basePrice) : a.basePrice;
-          const priceB = user ? (b.calculatedPrice?.price || b.basePrice) : b.basePrice;
-          return priceA - priceB;
-        case 'price-desc':
-          const priceDescA = user ? (a.calculatedPrice?.price || a.basePrice) : a.basePrice;
-          const priceDescB = user ? (b.calculatedPrice?.price || b.basePrice) : b.basePrice;
-          return priceDescB - priceDescA;
-        case 'created-desc':
-          const dateB = b.createdAt instanceof Date ? b.createdAt : b.createdAt.toDate();
-          const dateA = a.createdAt instanceof Date ? a.createdAt : a.createdAt.toDate();
-          return dateB.getTime() - dateA.getTime();
-        case 'popular':
-          return b.orderCount - a.orderCount;
-        default:
-          return 0;
-      }
-    });
-
-    // 分頁
-    const itemsPerPage = 12;
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-    const startIndex = (state.currentPage - 1) * itemsPerPage;
-    const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
-
-    setState(prev => ({
-      ...prev,
-      products: paginatedProducts,
-      totalPages
-    }));
-  };
-
+  // 防抖搜尋
   const debouncedSearch = useCallback(
     debounce((value: string) => {
-      setState(prev => ({ ...prev, searchTerm: value, currentPage: 1 }));
+      setState(prev => ({ ...prev, searchTerm: value }));
     }, 300),
     []
   );
 
+  // 處理排序變更
+  const handleSortChange = (sortBy: string) => {
+    const [field, direction] = sortBy.split('-');
+    setState(prev => ({
+      ...prev,
+      sortBy: field,
+      sortDirection: direction as 'asc' | 'desc'
+    }));
+  };
+
+  // 處理商品載入完成回調
+  const handleProductsLoaded = useCallback((count: number) => {
+    setState(prev => ({ ...prev, productsCount: count }));
+  }, []);
+
+  // 處理篩選變更
   const handleFiltersChange = (newFilters: typeof state.filters) => {
-    setState(prev => ({ ...prev, filters: newFilters, currentPage: 1 }));
+    setState(prev => ({ ...prev, filters: newFilters }));
   };
 
-  const handleSortChange = (value: string) => {
-    setState(prev => ({ ...prev, sortBy: value, currentPage: 1 }));
-  };
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
-  };
-
-  if (state.isLoading && state.products.length === 0) {
-    return (
-      <div className="min-h-screen bg-background">
-        <PublicHeader />
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -331,21 +148,21 @@ function ProductsPageContent() {
               {/* 排序選項 */}
               <div className="flex gap-2">
                 <Button
-                  variant={state.sortBy === 'name-asc' ? 'default' : 'outline'}
+                  variant={state.sortBy === 'name' && state.sortDirection === 'asc' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => handleSortChange('name-asc')}
                 >
                   名稱 ↑
                 </Button>
                 <Button
-                  variant={state.sortBy === 'price-asc' ? 'default' : 'outline'}
+                  variant={state.sortBy === 'price' && state.sortDirection === 'asc' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => handleSortChange('price-asc')}
                 >
                   價格 ↑
                 </Button>
                 <Button
-                  variant={state.sortBy === 'price-desc' ? 'default' : 'outline'}
+                  variant={state.sortBy === 'price' && state.sortDirection === 'desc' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => handleSortChange('price-desc')}
                 >
@@ -375,9 +192,11 @@ function ProductsPageContent() {
             </div>
 
             {/* 商品數量提示 */}
-            <div className="mb-4 text-sm text-muted-foreground">
-              找到 {state.allProducts.length} 個商品，目前顯示 {state.products.length} 個
-            </div>
+            {state.productsCount > 0 && (
+              <div className="mb-4 text-sm text-muted-foreground">
+                目前顯示 {state.productsCount} 個商品
+              </div>
+            )}
 
             {/* 錯誤訊息 */}
             {state.error && (
@@ -386,59 +205,12 @@ function ProductsPageContent() {
               </div>
             )}
 
-            {/* 商品列表 */}
-            {state.products.length === 0 && !state.isLoading ? (
-          <div className="text-center py-12">
-            <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">沒有找到商品</h3>
-            <p className="text-muted-foreground">
-              請嘗試調整搜尋條件或瀏覽其他分類
-            </p>
-              </div>
-            ) : (
-              <>
-                {/* Grid 檢視 */}
-                {state.viewMode === 'grid' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {state.products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-                  </div>
-                )}
-
-                {/* List 檢視 */}
-                {state.viewMode === 'list' && (
-                  <div className="space-y-4 mb-8">
-                {state.products.map((product) => (
-                  <ProductListItem key={product.id} product={product} />
-                ))}
-                  </div>
-                )}
-
-                {/* 分頁 */}
-                {state.totalPages > 1 && (
-                  <div className="flex justify-center items-center gap-2">
-                <Button
-                  variant="outline"
-                  disabled={state.currentPage === 1}
-                  onClick={() => setState(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
-                >
-                  上一頁
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  第 {state.currentPage} 頁，共 {state.totalPages} 頁
-                </span>
-                <Button
-                  variant="outline"
-                  disabled={state.currentPage === state.totalPages}
-                  onClick={() => setState(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
-                >
-                  下一頁
-                </Button>
-                  </div>
-                )}
-              </>
-            )}
+            {/* 虛擬化商品列表 */}
+            <VirtualizedProductList
+              query={query}
+              viewMode={state.viewMode}
+              onProductsLoaded={handleProductsLoaded}
+            />
           </div>
         </div>
       </div>
@@ -446,322 +218,20 @@ function ProductsPageContent() {
   );
 }
 
-// 商品卡片元件 (Grid 模式)
-function ProductCard({ product }: { product: ProductWithPrice }) {
-  const { user } = useAuth();
-  const { addItem, isInCart, getItemQuantity } = useCart();
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
-
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    try {
-      setIsAddingToCart(true);
-      await addItem({ productId: product.id, quantity: 1 });
-    } catch (error) {
-      // 錯誤處理已在 hook 中完成
-    } finally {
-      setIsAddingToCart(false);
-    }
-  };
-
-  const inCartQuantity = getItemQuantity(product.id);
-
-  return (
-    <Card className="group overflow-hidden hover:shadow-lg transition-shadow">
-      <Link href={`/products/${product.id}`}>
-        {/* 商品圖片 */}
-        <div className="aspect-square relative overflow-hidden bg-muted">
-          {product.images.length > 0 ? (
-            <Image
-              src={product.images[0].url}
-              alt={product.images[0].alt || product.name}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Package className="h-12 w-12 text-muted-foreground" />
-            </div>
-          )}
-          
-          {/* 特色標籤 */}
-          {product.isFeatured && (
-            <Badge className="absolute top-2 left-2 bg-primary">
-              精選
-            </Badge>
-          )}
-          
-          {/* 折扣標籤 */}
-          {product.calculatedPrice?.discountPercentage && product.calculatedPrice.discountPercentage > 0 && (
-            <Badge variant="destructive" className="absolute top-2 right-2">
-              -{product.calculatedPrice.discountPercentage.toFixed(0)}%
-            </Badge>
-          )}
-        </div>
-
-        {/* 商品資訊 */}
-        <div className="p-4">
-          <h3 className="font-semibold text-sm mb-1 line-clamp-2 group-hover:text-primary transition-colors">
-            {product.name}
-          </h3>
-          
-          {product.shortDescription && (
-            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-              {product.shortDescription}
-            </p>
-          )}
-
-          {/* 價格區域 */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              {user ? (
-                // 已登入用戶 - 顯示實際價格
-                product.calculatedPrice ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-primary">
-                        ${product.calculatedPrice.price.toFixed(2)}
-                      </span>
-                      {product.calculatedPrice.discountAmount > 0 && (
-                        <span className="text-xs text-muted-foreground line-through">
-                          ${product.calculatedPrice.originalPrice.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                    {product.calculatedPrice.appliedRule && (
-                      <p className="text-xs text-green-600">
-                        {product.calculatedPrice.appliedRule}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <span className="font-bold text-primary">
-                    ${product.basePrice.toFixed(2)}
-                  </span>
-                )
-              ) : (
-                // 未登入用戶 - 顯示會員限定提示
-                <div className="flex items-center gap-2">
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    會員限定價格
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* 快速操作 */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                <Heart className="h-4 w-4" />
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                <Eye className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Link>
-
-      {/* 購物車按鈕 */}
-      <div className="px-4 pb-4">
-        {user ? (
-          // 已登入用戶 - 顯示購物車功能
-          inCartQuantity > 0 ? (
-            <div className="space-y-2">
-              <Button size="sm" className="w-full" variant="outline">
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                已在購物車 ({inCartQuantity})
-              </Button>
-              <Button size="sm" className="w-full" onClick={handleAddToCart} disabled={isAddingToCart}>
-                {isAddingToCart ? '加入中...' : '再加一個'}
-              </Button>
-            </div>
-          ) : (
-            <Button 
-              size="sm" 
-              className="w-full" 
-              onClick={handleAddToCart}
-              disabled={isAddingToCart}
-            >
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              {isAddingToCart ? '加入中...' : '加入購物車'}
-            </Button>
-          )
-        ) : (
-          // 未登入用戶 - 顯示登入提示
-          <div className="space-y-2">
-            <Button size="sm" className="w-full" variant="outline" asChild>
-              <Link href="/login">
-                <LogIn className="mr-2 h-4 w-4" />
-                登入查看價格
-              </Link>
-            </Button>
-            <Button size="sm" className="w-full" variant="ghost" asChild>
-              <Link href="/register">
-                註冊成為會員
-              </Link>
-            </Button>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-// 商品列表項目元件 (List 模式)
-function ProductListItem({ product }: { product: ProductWithPrice }) {
-  const { user } = useAuth();
-  const { addItem, isInCart, getItemQuantity } = useCart();
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
-
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    try {
-      setIsAddingToCart(true);
-      await addItem({ productId: product.id, quantity: 1 });
-    } catch (error) {
-      // 錯誤處理已在 hook 中完成
-    } finally {
-      setIsAddingToCart(false);
-    }
-  };
-
-  const inCartQuantity = getItemQuantity(product.id);
-
-  return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
-      <Link href={`/products/${product.id}`}>
-        <div className="flex items-center gap-4">
-          {/* 商品圖片 */}
-          <div className="w-20 h-20 relative overflow-hidden rounded bg-muted flex-shrink-0">
-            {product.images.length > 0 ? (
-              <Image
-                src={product.images[0].url}
-                alt={product.images[0].alt || product.name}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Package className="h-8 w-8 text-muted-foreground" />
-              </div>
-            )}
-          </div>
-
-          {/* 商品資訊 */}
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold mb-1 hover:text-primary transition-colors">
-              {product.name}
-            </h3>
-            {product.shortDescription && (
-              <p className="text-sm text-muted-foreground mb-2 line-clamp-1">
-                {product.shortDescription}
-              </p>
-            )}
-            
-            {/* 標籤 */}
-            <div className="flex gap-2 mb-2">
-              {product.isFeatured && (
-                <Badge variant="secondary" className="text-xs">精選</Badge>
-              )}
-              {product.tags.slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          {/* 價格與操作 */}
-          <div className="flex flex-col items-end gap-2">
-            {user ? (
-              // 已登入用戶 - 顯示實際價格
-              product.calculatedPrice ? (
-                <div className="text-right">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-lg text-primary">
-                      ${product.calculatedPrice.price.toFixed(2)}
-                    </span>
-                    {product.calculatedPrice.discountAmount > 0 && (
-                      <span className="text-sm text-muted-foreground line-through">
-                        ${product.calculatedPrice.originalPrice.toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                  {product.calculatedPrice.appliedRule && (
-                    <p className="text-xs text-green-600">
-                      {product.calculatedPrice.appliedRule}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <span className="font-bold text-lg text-primary">
-                  ${product.basePrice.toFixed(2)}
-                </span>
-              )
-            ) : (
-              // 未登入用戶 - 顯示會員限定提示
-              <div className="flex items-center gap-2 text-right">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  會員限定價格
-                </span>
-              </div>
-            )}
-
-            {user ? (
-              // 已登入用戶 - 顯示購物車功能
-              inCartQuantity > 0 ? (
-                <div className="flex flex-col gap-2">
-                  <div className="text-xs text-muted-foreground text-center">
-                    購物車中: {inCartQuantity} 件
-                  </div>
-                  <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                    {isAddingToCart ? '加入中...' : '再加一個'}
-                  </Button>
-                </div>
-              ) : (
-                <Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  {isAddingToCart ? '加入中...' : '加入購物車'}
-                </Button>
-              )
-            ) : (
-              // 未登入用戶 - 顯示登入按鈕
-              <div className="flex flex-col gap-2">
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/login">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    登入查看價格
-                  </Link>
-                </Button>
-                <Button size="sm" variant="ghost" asChild>
-                  <Link href="/register">
-                    註冊成為會員
-                  </Link>
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </Link>
-    </Card>
-  );
-}
-
 // Loading 元件
 function ProductsLoading() {
   return (
     <div className="min-h-screen bg-background">
+      <PublicHeader />
       <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-muted rounded w-48 mb-2"></div>
+            <div className="h-4 bg-muted rounded w-64"></div>
+          </div>
+        </div>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
     </div>
