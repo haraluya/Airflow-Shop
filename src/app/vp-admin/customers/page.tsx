@@ -5,12 +5,33 @@ import { useRouter } from 'next/navigation'
 import { useAuthState } from 'react-firebase-hooks/auth'
 import { auth, db } from '@/lib/firebase/config'
 import { doc, getDoc, collection, query, getDocs, where, orderBy, limit } from 'firebase/firestore'
+import { customersService, CreateCustomerData } from '@/lib/firebase/customers'
+import { adminService } from '@/lib/firebase/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Search, Plus, Filter, MoreVertical, Eye, Edit, Trash2 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +55,20 @@ interface Customer {
   tags?: string[]
 }
 
+interface NewCustomerForm {
+  email: string
+  contactPerson: string
+  phoneNumber: string
+  companyName: string
+  taxId: string
+  address: string
+  source: string
+  salespersonId: string
+  notes: string
+  creditLimit: number
+  paymentTerms: string
+}
+
 export default function CustomersPage() {
   const [user, loading, error] = useAuthState(auth)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -42,6 +77,21 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [dataLoading, setDataLoading] = useState(true)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm>({
+    email: '',
+    contactPerson: '',
+    phoneNumber: '',
+    companyName: '',
+    taxId: '',
+    address: '',
+    source: '',
+    salespersonId: '',
+    notes: '',
+    creditLimit: 0,
+    paymentTerms: '月結30天'
+  })
   const router = useRouter()
 
   useEffect(() => {
@@ -128,6 +178,60 @@ export default function CustomersPage() {
     setFilteredCustomers(filtered)
   }, [customers, searchTerm, statusFilter])
 
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.email || !newCustomer.contactPerson || !newCustomer.phoneNumber) {
+      toast.error('請填寫必填欄位')
+      return
+    }
+
+    // 簡單的 email 驗證
+    if (!newCustomer.email.includes('@')) {
+      toast.error('請輸入有效的電子郵件')
+      return
+    }
+
+    setCreating(true)
+    try {
+      const customerData: CreateCustomerData = {
+        email: newCustomer.email,
+        contactPerson: newCustomer.contactPerson,
+        phoneNumber: newCustomer.phoneNumber,
+        companyName: newCustomer.companyName || undefined,
+        taxId: newCustomer.taxId || undefined,
+        address: newCustomer.address,
+        source: newCustomer.source || '管理員創建',
+        salespersonId: newCustomer.salespersonId || undefined,
+        notes: newCustomer.notes || undefined,
+        creditLimit: newCustomer.creditLimit,
+        paymentTerms: newCustomer.paymentTerms
+      }
+
+      await customersService.createCustomer(customerData)
+      toast.success('客戶創建成功')
+      setShowCreateDialog(false)
+      setNewCustomer({
+        email: '',
+        contactPerson: '',
+        phoneNumber: '',
+        companyName: '',
+        taxId: '',
+        address: '',
+        source: '',
+        salespersonId: '',
+        notes: '',
+        creditLimit: 0,
+        paymentTerms: '月結30天'
+      })
+      loadCustomers() // 重新載入列表
+    } catch (error) {
+      console.error('創建客戶失敗:', error)
+      const errorMessage = error instanceof Error ? error.message : '創建客戶失敗'
+      toast.error(errorMessage)
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -161,10 +265,144 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold">客戶管理</h1>
           <p className="text-muted-foreground">管理所有客戶資料與狀態</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          新增客戶
-        </Button>
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              新增客戶
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>新增客戶</DialogTitle>
+              <DialogDescription>
+                建立新的客戶資料，系統將自動設為啟用狀態
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customer-email">電子郵件 *</Label>
+                <Input
+                  id="customer-email"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  placeholder="customer@example.com"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="customer-contact">聯絡人姓名 *</Label>
+                <Input
+                  id="customer-contact"
+                  value={newCustomer.contactPerson}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, contactPerson: e.target.value })}
+                  placeholder="張三"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="customer-phone">電話號碼 *</Label>
+                <Input
+                  id="customer-phone"
+                  value={newCustomer.phoneNumber}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, phoneNumber: e.target.value })}
+                  placeholder="0912-345-678"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="customer-company">公司名稱</Label>
+                <Input
+                  id="customer-company"
+                  value={newCustomer.companyName}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, companyName: e.target.value })}
+                  placeholder="ABC 公司"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="customer-tax">統一編號</Label>
+                <Input
+                  id="customer-tax"
+                  value={newCustomer.taxId}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, taxId: e.target.value })}
+                  placeholder="12345678"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="customer-source">客戶來源</Label>
+                <Input
+                  id="customer-source"
+                  value={newCustomer.source}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, source: e.target.value })}
+                  placeholder="網站、推薦、電話等"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="customer-address">地址</Label>
+                <Input
+                  id="customer-address"
+                  value={newCustomer.address}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
+                  placeholder="台北市信義區..."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="customer-credit">信用額度 (NT$)</Label>
+                <Input
+                  id="customer-credit"
+                  type="number"
+                  value={newCustomer.creditLimit}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, creditLimit: parseInt(e.target.value) || 0 })}
+                  placeholder="50000"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="customer-payment">付款條件</Label>
+                <Select 
+                  value={newCustomer.paymentTerms} 
+                  onValueChange={(value) => setNewCustomer({ ...newCustomer, paymentTerms: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇付款條件" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="即期付款">即期付款</SelectItem>
+                    <SelectItem value="月結30天">月結30天</SelectItem>
+                    <SelectItem value="月結60天">月結60天</SelectItem>
+                    <SelectItem value="季結90天">季結90天</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="customer-notes">管理備註</Label>
+                <Textarea
+                  id="customer-notes"
+                  value={newCustomer.notes}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
+                  placeholder="內部備註..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                取消
+              </Button>
+              <Button onClick={handleCreateCustomer} disabled={creating}>
+                {creating ? '創建中...' : '創建客戶'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* 統計卡片 */}

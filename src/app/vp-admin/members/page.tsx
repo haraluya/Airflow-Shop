@@ -43,6 +43,7 @@ import { toast } from 'react-hot-toast'
 interface NewMemberForm {
   name: string
   email: string
+  password: string
   role: AdminRole
 }
 
@@ -66,6 +67,7 @@ export default function MembersManagePage() {
   const [newMember, setNewMember] = useState<NewMemberForm>({
     name: '',
     email: '',
+    password: '',
     role: 'admin'
   })
   const [editMember, setEditMember] = useState<EditMemberForm | null>(null)
@@ -140,8 +142,13 @@ export default function MembersManagePage() {
   }
 
   const handleCreateMember = async () => {
-    if (!newMember.name || !newMember.email || !newMember.role) {
+    if (!newMember.name || !newMember.email || !newMember.password || !newMember.role) {
       toast.error('請填寫所有必填欄位')
+      return
+    }
+
+    if (newMember.password.length < 6) {
+      toast.error('密碼長度至少需要 6 個字符')
       return
     }
 
@@ -150,20 +157,20 @@ export default function MembersManagePage() {
       const memberData = {
         name: newMember.name,
         email: newMember.email,
+        password: newMember.password,
         role: newMember.role,
-        permissions: ROLE_PERMISSIONS[newMember.role],
-        isActive: true,
-        createdBy: user?.uid
+        isActive: true
       }
 
-      await adminService.createMember(memberData)
-      toast.success('成員創建成功')
+      await adminService.createMemberWithAuth(memberData, user?.uid)
+      toast.success('成員創建成功（包含登入帳號）')
       setShowCreateDialog(false)
-      setNewMember({ name: '', email: '', role: 'admin' })
+      setNewMember({ name: '', email: '', password: '', role: 'admin' })
       loadMembers() // 重新載入列表
     } catch (error) {
       console.error('創建成員失敗:', error)
-      toast.error('創建成員失敗')
+      const errorMessage = error instanceof Error ? error.message : '創建成員失敗'
+      toast.error(errorMessage)
     } finally {
       setCreating(false)
     }
@@ -222,13 +229,14 @@ export default function MembersManagePage() {
   }
 
   const handleDeleteMember = async (memberId: string, memberName: string) => {
-    if (!confirm(`確定要刪除成員 "${memberName}" 嗎？此操作無法復原。`)) {
+    if (!confirm(`確定要刪除成員 "${memberName}" 嗎？此操作將刪除 Firestore 資料，但 Firebase Auth 帳號可能需要手動處理。`)) {
       return
     }
 
     try {
-      await adminService.deleteMember(memberId)
-      toast.success('成員已刪除')
+      await adminService.deleteMemberWithAuth(memberId)
+      toast.success('成員已刪除（Firestore 資料）')
+      toast.info('Firebase Auth 帳號可能需要手動刪除')
       loadMembers()
     } catch (error) {
       console.error('刪除成員失敗:', error)
@@ -307,6 +315,18 @@ export default function MembersManagePage() {
                         value={newMember.email}
                         onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
                         placeholder="請輸入登入信箱"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="member-password">登入密碼</Label>
+                      <Input
+                        id="member-password"
+                        type="password"
+                        value={newMember.password}
+                        onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+                        placeholder="請輸入登入密碼（至少6個字符）"
+                        minLength={6}
                       />
                     </div>
                     
@@ -423,13 +443,13 @@ export default function MembersManagePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 搜尋和篩選 */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:gap-4">
           <div className="flex-1">
             <Input
               placeholder="搜尋成員姓名或信箱..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-md"
+              className="w-full"
             />
           </div>
           
@@ -447,54 +467,6 @@ export default function MembersManagePage() {
           </Select>
         </div>
 
-        {/* 統計卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">總成員數</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{members.length}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">活躍成員</CardTitle>
-              <UserCheck className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {members.filter(m => m.isActive).length}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">管理員</CardTitle>
-              <Shield className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {members.filter(m => m.role === 'admin' || m.role === 'super_admin').length}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">業務員</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {members.filter(m => m.role === 'salesperson').length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* 成員列表 */}
         <Card>
@@ -526,14 +498,14 @@ export default function MembersManagePage() {
             ) : filteredMembers.length > 0 ? (
               <div className="space-y-4">
                 {filteredMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div key={member.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 gap-4">
                     <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
+                      <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                         <Users className="h-5 w-5 text-gray-500" />
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-medium">{member.name}</h3>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h3 className="font-medium truncate">{member.name}</h3>
                           <Badge className={getRoleColor(member.role)}>
                             {getRoleDisplayName(member.role)}
                           </Badge>
@@ -543,30 +515,42 @@ export default function MembersManagePage() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500">{member.email}</p>
+                        <p className="text-sm text-gray-500 truncate">{member.email}</p>
                         {member.lastLoginAt && (
                           <p className="text-xs text-gray-400 flex items-center mt-1">
-                            <Clock className="h-3 w-3 mr-1" />
+                            <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
                             最後登入: {member.lastLoginAt.toLocaleDateString()}
                           </p>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center justify-end space-x-2 flex-shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleEditMember(member)}
+                        className="hidden sm:flex"
                       >
                         <Edit className="h-4 w-4 mr-1" />
                         編輯
+                      </Button>
+                      
+                      {/* 手機版只顯示圖示按鈕 */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditMember(member)}
+                        className="sm:hidden"
+                      >
+                        <Edit className="h-4 w-4" />
                       </Button>
 
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleToggleMemberStatus(member.id, member.isActive)}
+                        className="hidden sm:flex"
                       >
                         {member.isActive ? (
                           <>
@@ -579,6 +563,16 @@ export default function MembersManagePage() {
                             啟用
                           </>
                         )}
+                      </Button>
+
+                      {/* 手機版狀態切換按鈕 */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleToggleMemberStatus(member.id, member.isActive)}
+                        className="sm:hidden"
+                      >
+                        {member.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                       </Button>
                       
                       <Button

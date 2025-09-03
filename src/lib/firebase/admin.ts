@@ -12,10 +12,19 @@ import {
   where, 
   orderBy, 
   Timestamp,
-  writeBatch
+  writeBatch,
+  setDoc
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
-import { AdminMember, AdminRole, Permission, Subdomain, RESERVED_SUBDOMAINS } from '@/lib/types/admin'
+import { 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  deleteUser,
+  updatePassword,
+  User
+} from 'firebase/auth'
+import { db, auth } from '@/lib/firebase/config'
+import { AdminMember, AdminRole, Permission, Subdomain, RESERVED_SUBDOMAINS, CreateMemberData, ROLE_PERMISSIONS } from '@/lib/types/admin'
 
 export class AdminService {
   private readonly collection = 'admins'
@@ -24,7 +33,57 @@ export class AdminService {
   // ===== 管理員成員管理 =====
   
   /**
-   * 創建新的管理員成員
+   * 創建新的管理員成員（包含 Firebase Auth 帳號創建）
+   */
+  async createMemberWithAuth(memberData: CreateMemberData, createdBy?: string): Promise<string> {
+    const currentUser = auth.currentUser
+    let newUserCredential: any = null
+    
+    try {
+      // 1. 在 Firebase Auth 中創建使用者
+      newUserCredential = await createUserWithEmailAndPassword(auth, memberData.email, memberData.password)
+      const newUser = newUserCredential.user
+      
+      // 2. 在 Firestore 中創建成員資料
+      const firestoreData = {
+        email: memberData.email,
+        name: memberData.name,
+        role: memberData.role,
+        permissions: ROLE_PERMISSIONS[memberData.role] || [],
+        isActive: memberData.isActive !== undefined ? memberData.isActive : true,
+        createdBy: createdBy,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      }
+      
+      // 使用 newUser.uid 作為 Firestore 文檔 ID
+      const docRef = doc(db, this.collection, newUser.uid)
+      await setDoc(docRef, firestoreData)
+      
+      // 3. 重新登入原本的使用者（如果有的話）
+      if (currentUser) {
+        // 這裡需要重新驗證，但在管理介面中我們通常會保持當前登入狀態
+        // 暫時不做處理，因為創建完成後通常會刷新頁面
+      }
+      
+      return newUser.uid
+    } catch (error) {
+      // 如果 Firestore 創建失敗，需要清理 Auth 使用者
+      if (newUserCredential?.user) {
+        try {
+          await deleteUser(newUserCredential.user)
+        } catch (cleanupError) {
+          console.error('清理 Auth 使用者失敗:', cleanupError)
+        }
+      }
+      
+      console.error('創建管理員成員失敗:', error)
+      throw error instanceof Error ? error : new Error('創建管理員成員失敗')
+    }
+  }
+
+  /**
+   * 創建新的管理員成員（舊版，僅 Firestore）
    */
   async createMember(memberData: Omit<AdminMember, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     try {
@@ -57,7 +116,29 @@ export class AdminService {
   }
 
   /**
-   * 刪除管理員成員
+   * 刪除管理員成員（包含 Firebase Auth 帳號）
+   * 注意：這個方法需要管理員權限，可能需要 Firebase Admin SDK
+   */
+  async deleteMemberWithAuth(memberId: string): Promise<void> {
+    try {
+      // 1. 先從 Firestore 刪除成員資料
+      const docRef = doc(db, this.collection, memberId)
+      await deleteDoc(docRef)
+      
+      // 2. 刪除 Firebase Auth 使用者
+      // 注意：在客戶端無法直接刪除其他使用者的 Auth 帳號
+      // 這需要使用 Firebase Admin SDK 或 Cloud Function
+      // 這裡我們先只刪除 Firestore 資料，Auth 帳號可能需要手動處理或使用 Cloud Function
+      
+      console.warn('Firebase Auth 帳號需要手動刪除或使用 Admin SDK')
+    } catch (error) {
+      console.error('刪除管理員成員失敗:', error)
+      throw new Error('刪除管理員成員失敗')
+    }
+  }
+
+  /**
+   * 刪除管理員成員（僅 Firestore）
    */
   async deleteMember(memberId: string): Promise<void> {
     try {

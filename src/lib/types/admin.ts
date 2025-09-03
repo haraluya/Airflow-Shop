@@ -14,6 +14,15 @@ export interface AdminMember {
   createdBy?: string // 創建此成員的管理員 ID
 }
 
+// 創建成員時使用的介面（包含密碼）
+export interface CreateMemberData {
+  email: string
+  password: string
+  name: string
+  role: AdminRole
+  isActive?: boolean
+}
+
 export type AdminRole = 'super_admin' | 'admin' | 'salesperson' | 'operations'
 
 export type Permission = 

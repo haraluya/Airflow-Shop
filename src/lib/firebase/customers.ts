@@ -4,6 +4,8 @@ import {
   getDocs, 
   getDoc, 
   updateDoc, 
+  addDoc,
+  setDoc,
   query, 
   where, 
   orderBy, 
@@ -14,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { COLLECTIONS, USER_STATUS } from '@/lib/utils/constants';
-import { CustomerProfile } from '@/lib/types/auth';
+import { CustomerProfile, Address } from '@/lib/types/auth';
 import { BaseFirebaseService } from './base';
 
 export interface CustomerFilters {
@@ -39,9 +41,73 @@ export interface CustomerUpdateData {
   paymentTerms?: string;
 }
 
+export interface CreateCustomerData {
+  email: string;
+  displayName?: string;
+  contactPerson: string;
+  phoneNumber: string;
+  companyName?: string;
+  taxId?: string;
+  address: string; // 第一個地址
+  source: string;
+  salespersonId?: string;
+  notes?: string;
+  creditLimit?: number;
+  paymentTerms?: string;
+}
+
 class CustomersService extends BaseFirebaseService<CustomerProfile> {
   constructor() {
     super(COLLECTIONS.USERS);
+  }
+
+  /**
+   * 創建新的客戶（管理員功能）
+   */
+  async createCustomer(customerData: CreateCustomerData): Promise<string> {
+    try {
+      const now = Timestamp.now();
+      
+      // 構建客戶資料
+      const customerProfile: Omit<CustomerProfile, 'id'> = {
+        uid: '', // 暫時為空，因為沒有 Firebase Auth 整合
+        email: customerData.email,
+        displayName: customerData.displayName || customerData.contactPerson,
+        role: 'customer',
+        status: USER_STATUS.ACTIVE, // 管理員創建的客戶直接啟用
+        contactPerson: customerData.contactPerson,
+        phoneNumber: customerData.phoneNumber,
+        companyName: customerData.companyName,
+        taxId: customerData.taxId,
+        addresses: [{
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'delivery',
+          address: customerData.address,
+          isDefault: true,
+          createdAt: now.toDate()
+        }],
+        source: customerData.source,
+        salespersonId: customerData.salespersonId,
+        notes: customerData.notes,
+        creditLimit: customerData.creditLimit || 0,
+        paymentTerms: customerData.paymentTerms || '月結30天',
+        createdAt: now.toDate(),
+        updatedAt: now.toDate(),
+        lastLoginAt: undefined
+      };
+
+      // 添加到 Firestore
+      const docRef = await addDoc(collection(db, this.collectionName), {
+        ...customerProfile,
+        createdAt: now,
+        updatedAt: now
+      });
+
+      return docRef.id;
+    } catch (error) {
+      console.error('創建客戶失敗:', error);
+      throw new Error('創建客戶失敗');
+    }
   }
 
   /**
