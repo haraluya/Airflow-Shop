@@ -12,6 +12,13 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -39,28 +46,28 @@ import { toast } from 'react-hot-toast'
 
 interface NewSubdomainForm {
   subdomain: string
-  salespersonName: string
-  salespersonEmail: string
+  memberId: string // 選擇已建立的成員ID
   welcomeMessage: string
-  phone: string
   lineId: string
-  region: string
+  lineUrl: string
+  introduction: string // 改為自我介紹
 }
 
 export default function SubdomainsManagePage() {
   const [user, loading] = useAuthState(auth)
   const [subdomains, setSubdomains] = useState<Subdomain[]>([])
   const [subdomainsLoading, setSubdomainsLoading] = useState(true)
+  const [members, setMembers] = useState<any[]>([]) // 成員列表
+  const [membersLoading, setMembersLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [newSubdomain, setNewSubdomain] = useState<NewSubdomainForm>({
     subdomain: '',
-    salespersonName: '',
-    salespersonEmail: '',
+    memberId: '',
     welcomeMessage: '',
-    phone: '',
     lineId: '',
-    region: ''
+    lineUrl: '',
+    introduction: ''
   })
   const [creating, setCreating] = useState(false)
   const [checkingAvailability, setCheckingAvailability] = useState(false)
@@ -76,6 +83,7 @@ export default function SubdomainsManagePage() {
     if (user) {
       checkAdminAccess()
       loadSubdomains()
+      loadMembers()
     }
   }, [user, loading])
 
@@ -106,6 +114,21 @@ export default function SubdomainsManagePage() {
       toast.error('載入子網域列表失敗')
     } finally {
       setSubdomainsLoading(false)
+    }
+  }
+
+  const loadMembers = async () => {
+    try {
+      setMembersLoading(true)
+      const membersList = await adminService.getAllMembers()
+      // 只載入業務員角色的成員
+      const salespeople = membersList.filter(member => member.role === 'salesperson' && member.isActive)
+      setMembers(salespeople)
+    } catch (error) {
+      console.error('載入成員列表失敗:', error)
+      toast.error('載入成員列表失敗')
+    } finally {
+      setMembersLoading(false)
     }
   }
 
@@ -140,8 +163,8 @@ export default function SubdomainsManagePage() {
   }
 
   const handleCreateSubdomain = async () => {
-    if (!newSubdomain.subdomain || !newSubdomain.salespersonName || !newSubdomain.salespersonEmail) {
-      toast.error('請填寫所有必填欄位')
+    if (!newSubdomain.subdomain || !newSubdomain.memberId) {
+      toast.error('請填寫子網域名稱並選擇業務員')
       return
     }
 
@@ -150,18 +173,27 @@ export default function SubdomainsManagePage() {
       return
     }
 
+    // 找到選中的成員
+    const selectedMember = members.find(member => member.id === newSubdomain.memberId)
+    if (!selectedMember) {
+      toast.error('找不到選擇的業務員')
+      return
+    }
+
     setCreating(true)
     try {
-      // 先創建業務員資料（簡化版本，實際應該有完整的業務員創建流程）
       const subdomainData: Omit<Subdomain, 'id' | 'createdAt' | 'updatedAt'> = {
         subdomain: newSubdomain.subdomain,
-        salespersonId: `salesperson_${Date.now()}`, // 暫時ID，實際應該關聯到真實業務員
-        salespersonName: newSubdomain.salespersonName,
+        salespersonId: selectedMember.id,
+        salespersonName: selectedMember.name,
         isActive: true,
         isReserved: false,
         customSettings: {
-          welcomeMessage: newSubdomain.welcomeMessage,
-          showContact: true
+          welcomeMessage: newSubdomain.welcomeMessage || `歡迎來到 ${selectedMember.name} 的專屬商城！`,
+          showContact: true,
+          lineId: newSubdomain.lineId,
+          lineUrl: newSubdomain.lineUrl,
+          introduction: newSubdomain.introduction
         },
         stats: {
           totalVisits: 0,
@@ -176,12 +208,11 @@ export default function SubdomainsManagePage() {
       setShowCreateDialog(false)
       setNewSubdomain({
         subdomain: '',
-        salespersonName: '',
-        salespersonEmail: '',
+        memberId: '',
         welcomeMessage: '',
-        phone: '',
         lineId: '',
-        region: ''
+        lineUrl: '',
+        introduction: ''
       })
       setSubdomainAvailable(null)
       loadSubdomains()
@@ -304,58 +335,61 @@ export default function SubdomainsManagePage() {
                       </p>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="salesperson-name">業務員姓名 *</Label>
-                        <Input
-                          id="salesperson-name"
-                          value={newSubdomain.salespersonName}
-                          onChange={(e) => setNewSubdomain({ ...newSubdomain, salespersonName: e.target.value })}
-                          placeholder="請輸入業務員姓名"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="salesperson-email">聯絡信箱 *</Label>
-                        <Input
-                          id="salesperson-email"
-                          type="email"
-                          value={newSubdomain.salespersonEmail}
-                          onChange={(e) => setNewSubdomain({ ...newSubdomain, salespersonEmail: e.target.value })}
-                          placeholder="業務員聯絡信箱"
-                        />
-                      </div>
+                    <div>
+                      <Label htmlFor="member-select">選擇業務員 *</Label>
+                      <Select
+                        value={newSubdomain.memberId}
+                        onValueChange={(value) => setNewSubdomain({ ...newSubdomain, memberId: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="選擇業務員成員" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {membersLoading ? (
+                            <SelectItem value="" disabled>載入中...</SelectItem>
+                          ) : members.length === 0 ? (
+                            <SelectItem value="" disabled>沒有可用的業務員</SelectItem>
+                          ) : (
+                            members.map((member) => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name} ({member.email})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="phone">聯絡電話</Label>
-                        <Input
-                          id="phone"
-                          value={newSubdomain.phone}
-                          onChange={(e) => setNewSubdomain({ ...newSubdomain, phone: e.target.value })}
-                          placeholder="0912-345-678"
-                        />
-                      </div>
-                      
                       <div>
                         <Label htmlFor="line-id">LINE ID</Label>
                         <Input
                           id="line-id"
                           value={newSubdomain.lineId}
                           onChange={(e) => setNewSubdomain({ ...newSubdomain, lineId: e.target.value })}
-                          placeholder="line_id"
+                          placeholder="@your_line_id"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="line-url">LINE 網址</Label>
+                        <Input
+                          id="line-url"
+                          value={newSubdomain.lineUrl}
+                          onChange={(e) => setNewSubdomain({ ...newSubdomain, lineUrl: e.target.value })}
+                          placeholder="https://line.me/ti/p/~your_line_id"
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <Label htmlFor="region">服務地區</Label>
-                      <Input
-                        id="region"
-                        value={newSubdomain.region}
-                        onChange={(e) => setNewSubdomain({ ...newSubdomain, region: e.target.value })}
-                        placeholder="例如：台北地區、全台灣"
+                      <Label htmlFor="introduction">自我介紹</Label>
+                      <Textarea
+                        id="introduction"
+                        value={newSubdomain.introduction}
+                        onChange={(e) => setNewSubdomain({ ...newSubdomain, introduction: e.target.value })}
+                        placeholder="請介紹您的專業背景與服務特色..."
+                        rows={3}
                       />
                     </div>
                     
