@@ -41,6 +41,11 @@ export interface CustomerUpdateData {
   creditLimit?: number;
   paymentTerms?: string;
   referralCode?: string;
+  addresses?: Address[];
+  displayName?: string;
+  contactPerson?: string;
+  phoneNumber?: string;
+  companyName?: string;
 }
 
 export interface CreateCustomerData {

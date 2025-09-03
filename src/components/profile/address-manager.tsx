@@ -30,7 +30,7 @@ export function AddressManager() {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    if (profile?.addresses) {
+    if (profile && 'addresses' in profile && profile.addresses) {
       setAddresses(profile.addresses);
     }
   }, [profile]);
@@ -157,6 +157,28 @@ export function AddressManager() {
     }
   };
 
+  const handleSaveAllAddresses = async (newAddresses: Address[]) => {
+    if (!profile?.id) return;
+
+    setIsLoading(true);
+    try {
+      await customersService.updateCustomer(profile.id, {
+        addresses: newAddresses,
+      });
+
+      setAddresses(newAddresses);
+      await refreshProfile();
+      setMessage({ type: 'success', text: '地址已成功更新' });
+
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('更新地址失敗:', error);
+      setMessage({ type: 'error', text: '更新地址失敗' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!profile) {
     return (
       <Card>
@@ -193,7 +215,11 @@ export function AddressManager() {
                 <DialogTitle>新增送貨地址</DialogTitle>
               </DialogHeader>
               <AddressForm
-                onSubmit={handleAddAddress}
+                addresses={addresses}
+                onSave={async (newAddresses) => {
+                  await handleSaveAllAddresses(newAddresses);
+                  setShowAddDialog(false);
+                }}
                 onCancel={() => setShowAddDialog(false)}
                 isLoading={isLoading}
               />
@@ -230,8 +256,12 @@ export function AddressManager() {
                     <DialogTitle>新增送貨地址</DialogTitle>
                   </DialogHeader>
                   <AddressForm
-                    onSubmit={handleAddAddress}
-                    onCancel={() => setShowAddDialog(false)}
+                    addresses={addresses}
+                    onSave={async (newAddresses) => {
+                      await handleSaveAllAddresses(newAddresses);
+                      setShowEditDialog(false);
+                    }}
+                    onCancel={() => setShowEditDialog(false)}
                     isLoading={isLoading}
                   />
                 </DialogContent>
@@ -317,8 +347,12 @@ export function AddressManager() {
           </DialogHeader>
           {editingAddress && (
             <AddressForm
-              initialData={editingAddress}
-              onSubmit={handleEditAddress}
+              addresses={addresses}
+              onSave={async (newAddresses) => {
+                await handleSaveAllAddresses(newAddresses);
+                setShowEditDialog(false);
+                setEditingAddress(null);
+              }}
               onCancel={() => {
                 setShowEditDialog(false);
                 setEditingAddress(null);

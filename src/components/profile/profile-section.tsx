@@ -90,38 +90,38 @@ export function ProfileSection() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 聯絡人 */}
-            {profile.contactPerson && (
+            {(profile && 'contactPerson' in profile && profile.contactPerson) && (
               <div className="flex items-center space-x-2 text-sm">
                 <User className="w-4 h-4 text-muted-foreground" />
                 <span className="text-muted-foreground">聯絡人:</span>
-                <span>{profile.contactPerson}</span>
+                <span>{(profile && 'contactPerson' in profile) ? profile.contactPerson : ''}</span>
               </div>
             )}
 
             {/* 電話 */}
-            {profile.phoneNumber && (
+            {(profile && 'phoneNumber' in profile && profile.phoneNumber) && (
               <div className="flex items-center space-x-2 text-sm">
                 <Phone className="w-4 h-4 text-muted-foreground" />
                 <span className="text-muted-foreground">電話:</span>
-                <span>{profile.phoneNumber}</span>
+                <span>{(profile && 'phoneNumber' in profile) ? profile.phoneNumber : ''}</span>
               </div>
             )}
 
             {/* 公司名稱 */}
-            {profile.companyName && (
+            {(profile && 'companyName' in profile && profile.companyName) && (
               <div className="flex items-center space-x-2 text-sm">
                 <Building2 className="w-4 h-4 text-muted-foreground" />
                 <span className="text-muted-foreground">公司:</span>
-                <span>{profile.companyName}</span>
+                <span>{(profile && 'companyName' in profile) ? profile.companyName : ''}</span>
               </div>
             )}
 
             {/* 信用額度 */}
-            {profile.creditLimit !== undefined && (
+            {(profile && 'creditLimit' in profile && profile.creditLimit !== undefined) && (
               <div className="flex items-center space-x-2 text-sm">
                 <CreditCard className="w-4 h-4 text-muted-foreground" />
                 <span className="text-muted-foreground">信用額度:</span>
-                <span className="font-medium">NT$ {profile.creditLimit.toLocaleString()}</span>
+                <span className="font-medium">NT$ {(profile && 'creditLimit' in profile && profile.creditLimit !== undefined) ? profile.creditLimit.toLocaleString() : 0}</span>
               </div>
             )}
           </div>
@@ -130,7 +130,12 @@ export function ProfileSection() {
           {profile.createdAt && (
             <div className="flex items-center space-x-2 text-sm text-muted-foreground mt-4 pt-4 border-t">
               <Calendar className="w-4 h-4" />
-              <span>註冊時間: {new Date(profile.createdAt).toLocaleDateString('zh-TW')}</span>
+              <span>註冊時間: {
+                profile.createdAt && (typeof profile.createdAt === 'object' && 'toDate' in profile.createdAt 
+                  ? (profile.createdAt as any).toDate().toLocaleDateString('zh-TW')
+                  : new Date(profile.createdAt as any).toLocaleDateString('zh-TW')
+                )
+              }</span>
             </div>
           )}
         </CardContent>

@@ -201,8 +201,8 @@ export default function OrderDetailPage() {
               <h1 className="text-2xl font-bold">訂單詳情</h1>
               <div className="flex items-center gap-4 mt-2">
                 <span className="text-muted-foreground">#{order.orderNumber}</span>
-                {getStatusBadge(order.status)}
-                {getPaymentStatusBadge(order.payment.status)}
+                {getStatusBadge(order.status as OrderStatus)}
+                {order.payment && getPaymentStatusBadge(order.payment.status as PaymentStatus)}
               </div>
             </div>
           </div>
@@ -247,33 +247,33 @@ export default function OrderDetailPage() {
                   <div className="flex items-start gap-3">
                     <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div>
-                      <p className="font-medium">{order.delivery.address.label}</p>
-                      <p className="text-muted-foreground">收件人：{order.delivery.address.recipient}</p>
-                      <p className="text-muted-foreground">{order.delivery.address.address}</p>
+                      <p className="font-medium">{order.delivery?.address?.label}</p>
+                      <p className="text-muted-foreground">收件人：{order.delivery?.address?.recipient}</p>
+                      <p className="text-muted-foreground">{order.delivery?.address?.address}</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-3">
                     <Phone className="h-5 w-5 text-muted-foreground" />
-                    <span>{order.delivery.contactPhone}</span>
+                    <span>{order.delivery?.contactPhone}</span>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <Truck className="h-5 w-5 text-muted-foreground" />
                     <span>
-                      {order.delivery.method === 'standard' && '標準配送'}
-                      {order.delivery.method === 'express' && '快速配送'}
-                      {order.delivery.method === 'pickup' && '門市自取'}
-                      {order.delivery.method === 'same_day' && '當日配送'}
+                      {order.delivery?.method === 'standard' && '標準配送'}
+                      {order.delivery?.method === 'express' && '快速配送'}
+                      {order.delivery?.method === 'pickup' && '門市自取'}
+                      {order.delivery?.method === 'same_day' && '當日配送'}
                     </span>
                   </div>
 
-                  {order.delivery.trackingNumber && (
+                  {order.delivery?.trackingNumber && (
                     <div className="flex items-center gap-3">
                       <Package className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <span className="text-sm text-muted-foreground">追蹤編號：</span>
-                        <span className="font-mono">{order.delivery.trackingNumber}</span>
+                        <span className="font-mono">{order.delivery?.trackingNumber}</span>
                       </div>
                     </div>
                   )}
@@ -287,27 +287,27 @@ export default function OrderDetailPage() {
                   <div className="flex items-center gap-3">
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
                     <span>
-                      {order.payment.method === 'bank_transfer' && '銀行轉帳'}
-                      {order.payment.method === 'credit_card' && '信用卡'}
-                      {order.payment.method === 'cod' && '貨到付款'}
-                      {order.payment.method === 'net_banking' && '網路銀行'}
+                      {order.payment?.method === 'bank_transfer' && '銀行轉帳'}
+                      {order.payment?.method === 'credit_card' && '信用卡'}
+                      {order.payment?.method === 'cod' && '貨到付款'}
+                      {order.payment?.method === 'net_banking' && '網路銀行'}
                     </span>
                   </div>
 
                   <div className="flex justify-between">
                     <span>付款狀態</span>
-                    {getPaymentStatusBadge(order.payment.status)}
+                    {order.payment && getPaymentStatusBadge(order.payment.status as PaymentStatus)}
                   </div>
 
                   <div className="flex justify-between">
                     <span>付款金額</span>
-                    <span className="font-medium">{formatPrice(order.payment.amount)}</span>
+                    <span className="font-medium">{order.payment?.amount && formatPrice(order.payment.amount)}</span>
                   </div>
 
-                  {order.payment.dueDate && (
+                  {order.payment?.dueDate && (
                     <div className="flex justify-between">
                       <span>到期日</span>
-                      <span>{formatDate(order.payment.dueDate)}</span>
+                      <span>{order.payment?.dueDate && formatDate(order.payment.dueDate)}</span>
                     </div>
                   )}
                 </div>
@@ -322,23 +322,23 @@ export default function OrderDetailPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>商品小計</span>
-                    <span>{formatPrice(order.pricing.subtotal)}</span>
+                    <span>{order.pricing?.subtotal && formatPrice(order.pricing.subtotal)}</span>
                   </div>
                   
                   <div className="flex justify-between">
                     <span>運費</span>
-                    <span>{order.pricing.shippingFee === 0 ? '免費' : formatPrice(order.pricing.shippingFee)}</span>
+                    <span>{order.pricing?.shippingFee !== undefined ? (order.pricing.shippingFee === 0 ? '免費' : formatPrice(order.pricing.shippingFee)) : ''}</span>
                   </div>
                   
                   <div className="flex justify-between">
                     <span>稅額</span>
-                    <span>{formatPrice(order.pricing.taxAmount)}</span>
+                    <span>{order.pricing?.taxAmount && formatPrice(order.pricing.taxAmount)}</span>
                   </div>
 
-                  {order.pricing.discountAmount > 0 && (
+                  {order.pricing?.discountAmount && order.pricing.discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>優惠折扣</span>
-                      <span>-{formatPrice(order.pricing.discountAmount)}</span>
+                      <span>-{order.pricing?.discountAmount && formatPrice(order.pricing.discountAmount)}</span>
                     </div>
                   )}
 
@@ -346,7 +346,7 @@ export default function OrderDetailPage() {
                   
                   <div className="flex justify-between text-lg font-bold">
                     <span>總計</span>
-                    <span className="text-primary">{formatPrice(order.pricing.totalAmount)}</span>
+                    <span className="text-primary">{order.pricing?.totalAmount && formatPrice(order.pricing.totalAmount)}</span>
                   </div>
                 </div>
               </Card>

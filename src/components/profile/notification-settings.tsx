@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/lib/providers/auth-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ export function NotificationSettings() {
       } else {
         // 建立預設設定
         const defaultSettings: NotificationSettingsType = {
+          id: `${profile.id}_notification_settings`,
           userId: profile.id,
           userType: 'customer',
           emailEnabled: true,
@@ -57,8 +59,8 @@ export function NotificationSettings() {
           stockNotifications: false,
           systemNotifications: true,
           marketingNotifications: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
         };
         setSettings(defaultSettings);
       }
@@ -75,7 +77,7 @@ export function NotificationSettings() {
     setSettings({
       ...settings,
       [key]: value,
-      updatedAt: new Date(),
+      updatedAt: Timestamp.now(),
     });
   };
 
@@ -90,7 +92,7 @@ export function NotificationSettings() {
       
       await setDoc(settingsRef, {
         ...settings,
-        updatedAt: new Date(),
+        updatedAt: Timestamp.now(),
       }, { merge: true });
 
       setMessage({ type: 'success', text: '通知設定已成功更新' });

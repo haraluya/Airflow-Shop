@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Search, Filter, MoreVertical, Eye, Edit, Download, Package, Truck, CheckCircle } from 'lucide-react'
+import { OrderStatus } from '@/lib/types/order'
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -367,7 +368,7 @@ export default function OrdersPage() {
                           {getStatusIcon(order.status)}
                           <h3 className="font-medium">{order.orderNumber}</h3>
                         </div>
-                        {getStatusBadge(order.status)}
+                        {getStatusBadge(order.status as OrderStatus)}
                         {getPaymentBadge(order.paymentStatus)}
                       </div>
 

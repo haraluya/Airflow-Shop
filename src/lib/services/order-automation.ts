@@ -187,14 +187,15 @@ class OrderAutomationService {
           break;
         case PAYMENT_STATUS.OVERDUE:
           // 計算逾期天數
-          const dueDate = orderData.dueDate || orderData.createdAt;
-          const daysPastDue = Math.floor((Date.now() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          const dueDate = orderData.payment?.dueDate || orderData.createdAt;
+          const dueDateValue = typeof dueDate === 'object' && 'toDate' in dueDate ? dueDate.toDate() : new Date(dueDate);
+          const daysPastDue = Math.floor((Date.now() - dueDateValue.getTime()) / (1000 * 60 * 60 * 24));
           updateData.daysPastDue = daysPastDue;
           break;
         case PAYMENT_STATUS.CANCELLED:
           updateData.paymentCancelledAt = Timestamp.now();
           // 付款取消時，如果訂單未發貨，自動取消訂單
-          if ([ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED].includes(orderData.status)) {
+          if ([ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED].includes(orderData.status as any)) {
             updateData.status = ORDER_STATUS.CANCELLED;
             updateData.cancelledAt = Timestamp.now();
             updateData.cancelReason = '付款已取消';
@@ -295,7 +296,7 @@ class OrderAutomationService {
         [{
           id: order.customerId,
           type: 'customer',
-          email: order.shippingAddress?.email || order.customerEmail || '',
+          email: order.customerEmail || '',
           name: order.customerName,
         }],
         {
@@ -327,7 +328,7 @@ class OrderAutomationService {
           [{
             id: order.customerId,
             type: 'customer',
-            email: order.shippingAddress?.email || order.customerEmail || '',
+            email: order.customerEmail || '',
             name: order.customerName,
           }],
           {

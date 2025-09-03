@@ -58,7 +58,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     
     // 計算基本統計
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.totalAmount || 0), 0);
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     
     // 統計客戶
@@ -121,7 +121,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     const ordersSnapshot = await getDocs(ordersQuery);
     const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
-    const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.totalAmount || 0), 0);
     const grossProfit = totalRevenue * 0.3; // 假設30%毛利率
     const netProfit = grossProfit * 0.8; // 假設80%淨利率
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
@@ -181,7 +181,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     const customerRevenue = new Map<string, number>();
     orders.forEach(order => {
       const current = customerRevenue.get(order.customerId) || 0;
-      customerRevenue.set(order.customerId, current + order.pricing.totalAmount);
+      customerRevenue.set(order.customerId, current + (order.pricing?.totalAmount || 0));
     });
     
     const averageCustomerValue = customerRevenue.size > 0 
@@ -239,7 +239,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.totalAmount || 0), 0);
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     
     // 獲取新客戶數量
@@ -254,7 +254,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     orders.forEach(order => {
       const current = customerRevenue.get(order.customerId) || { orders: 0, revenue: 0 };
       current.orders += 1;
-      current.revenue += order.pricing.totalAmount;
+      current.revenue += order.pricing?.totalAmount || 0;
       customerRevenue.set(order.customerId, current);
     });
     
@@ -378,7 +378,7 @@ export class ReportsService extends BaseFirebaseService<any> {
       const dateStr = order.orderDate.toISOString().split('T')[0];
       const current = dayMap.get(dateStr);
       if (current) {
-        current.revenue += order.pricing.totalAmount;
+        current.revenue += order.pricing?.totalAmount || 0;
         current.orders += 1;
       }
     });
@@ -395,11 +395,13 @@ export class ReportsService extends BaseFirebaseService<any> {
     const methodMap = new Map<PaymentMethod, { revenue: number; count: number }>();
     
     orders.forEach(order => {
-      const method = order.payment.method;
-      const current = methodMap.get(method) || { revenue: 0, count: 0 };
-      current.revenue += order.pricing.totalAmount;
-      current.count += 1;
-      methodMap.set(method, current);
+      if (order.payment?.method) {
+        const method = order.payment.method;
+        const current = methodMap.get(method) || { revenue: 0, count: 0 };
+        current.revenue += (order.pricing?.totalAmount || 0);
+        current.count += 1;
+        methodMap.set(method, current);
+      }
     });
     
     return Array.from(methodMap.entries()).map(([method, stats]) => ({
@@ -494,7 +496,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
     
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.totalAmount || 0), 0);
     const customerIds = [...new Set(orders.map(order => order.customerId))];
     
     return {
@@ -515,7 +517,7 @@ export class ReportsService extends BaseFirebaseService<any> {
     ]);
     
     const orders = ordersSnapshot.docs.map(doc => this.convertTimestamps(doc.data()) as Order);
-    const totalRevenue = orders.reduce((sum, order) => sum + order.pricing.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.totalAmount || 0), 0);
     
     return {
       customers: customersSnapshot.size,

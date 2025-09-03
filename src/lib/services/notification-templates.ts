@@ -13,7 +13,8 @@ import {
   deleteDoc, 
   query, 
   where, 
-  orderBy 
+  orderBy,
+  Timestamp 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { COLLECTIONS } from '@/lib/utils/constants';
@@ -69,8 +70,8 @@ class NotificationTemplateService {
       inAppTemplate: '您的訂單 {{orderNumber}} 已成功建立，總計 NT$ {{totalAmount}}',
       variables: ['customerName', 'orderNumber', 'totalAmount', 'orderDate'],
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     },
     
     [NOTIFICATION_TYPE.ORDER_CONFIRMED]: {
@@ -98,8 +99,8 @@ class NotificationTemplateService {
       inAppTemplate: '您的訂單 {{orderNumber}} 已確認，正在準備出貨',
       variables: ['customerName', 'orderNumber', 'confirmedAt'],
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     },
     
     [NOTIFICATION_TYPE.ORDER_SHIPPED]: {
@@ -130,8 +131,8 @@ class NotificationTemplateService {
       inAppTemplate: '您的訂單 {{orderNumber}} 已出貨，預計 {{estimatedDays}} 天內送達',
       variables: ['customerName', 'orderNumber', 'shippedAt', 'trackingNumber', 'estimatedDeliveryDate', 'estimatedDays'],
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     },
     
     [NOTIFICATION_TYPE.ORDER_DELIVERED]: {
@@ -159,8 +160,8 @@ class NotificationTemplateService {
       inAppTemplate: '您的訂單 {{orderNumber}} 已送達，感謝您的購買！',
       variables: ['customerName', 'orderNumber', 'deliveredAt'],
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     },
     
     [NOTIFICATION_TYPE.PAYMENT_RECEIVED]: {
@@ -191,8 +192,8 @@ class NotificationTemplateService {
       inAppTemplate: '您的付款已確認，訂單 {{orderNumber}} 進入處理流程',
       variables: ['customerName', 'orderNumber', 'amount', 'paidAt', 'transactionId'],
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     },
   };
 
@@ -220,8 +221,8 @@ class NotificationTemplateService {
     try {
       const template: Omit<NotificationTemplate, 'id'> = {
         ...templateData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       };
 
       const docRef = await addDoc(collection(db, COLLECTIONS.NOTIFICATION_TEMPLATES), template);

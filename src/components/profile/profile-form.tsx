@@ -34,11 +34,11 @@ export function ProfileForm() {
     resolver: zodResolver(profileSchema),
     defaultValues: {
       displayName: profile?.displayName || '',
-      contactPerson: profile?.contactPerson || '',
-      phoneNumber: profile?.phoneNumber || '',
-      companyName: profile?.companyName || '',
-      taxId: profile?.taxId || '',
-      notes: profile?.notes || '',
+      contactPerson: (profile && 'contactPerson' in profile) ? profile.contactPerson || '' : '',
+      phoneNumber: (profile && 'phoneNumber' in profile) ? profile.phoneNumber || '' : '',
+      companyName: (profile && 'companyName' in profile) ? profile.companyName || '' : '',
+      taxId: (profile && 'taxId' in profile) ? profile.taxId || '' : '',
+      notes: (profile && 'notes' in profile) ? profile.notes || '' : '',
     },
   });
 
@@ -196,7 +196,6 @@ export function ProfileForm() {
           >
             <Textarea
               placeholder="請輸入備註 (選填)"
-              error={form.formState.errors.notes?.message}
               {...form.register('notes')}
             />
           </FormField>

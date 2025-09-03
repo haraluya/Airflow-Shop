@@ -36,8 +36,8 @@ export function OrderHistory() {
     setError(null);
 
     try {
-      const customerOrders = await ordersService.getOrdersByCustomer(profile.id);
-      setOrders(customerOrders);
+      const result = await ordersService.getCustomerOrders(profile.id);
+      setOrders(result.orders);
     } catch (err) {
       console.error('載入訂單記錄失敗:', err);
       setError('載入訂單記錄失敗');
@@ -157,7 +157,12 @@ export function OrderHistory() {
                       <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                         <div className="flex items-center space-x-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(order.createdAt).toLocaleDateString('zh-TW')}</span>
+                          <span>
+                            {order.createdAt && (typeof order.createdAt === 'object' && 'toDate' in order.createdAt 
+                              ? (order.createdAt as any).toDate().toLocaleDateString('zh-TW')
+                              : new Date(order.createdAt as any).toLocaleDateString('zh-TW')
+                            )}
+                          </span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Package className="w-4 h-4" />

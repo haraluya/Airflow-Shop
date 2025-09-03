@@ -278,8 +278,8 @@ export default function OrdersPage() {
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold">#{order.orderNumber}</h3>
-                        {getStatusBadge(order.status)}
-                        {getPaymentStatusBadge(order.payment.status)}
+                        {getStatusBadge(order.status as OrderStatus)}
+                        {order.payment && getPaymentStatusBadge(order.payment.status as PaymentStatus)}
                       </div>
                       
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -295,7 +295,7 @@ export default function OrdersPage() {
                     
                     <div className="text-right">
                       <p className="text-lg font-bold text-primary">
-                        {formatPrice(order.pricing.totalAmount)}
+                        {order.pricing?.totalAmount && formatPrice(order.pricing.totalAmount)}
                       </p>
                       <Button asChild size="sm" className="mt-2">
                         <Link href={`/orders/${order.id}`} className="flex items-center">

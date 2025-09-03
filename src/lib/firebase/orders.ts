@@ -171,7 +171,7 @@ class OrdersService extends BaseFirebaseService<Order> {
       }
 
       // 準備訂單資料
-      const orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'> = {
+      const orderData: any = {
         orderNumber,
         customerId: customerId || userId,
         customerName,
@@ -502,7 +502,7 @@ class OrdersService extends BaseFirebaseService<Order> {
         const filtered = orders.filter(order => 
           order.orderNumber.toLowerCase().includes(params.query!.toLowerCase()) ||
           order.customerName.toLowerCase().includes(params.query!.toLowerCase()) ||
-          order.customerEmail.toLowerCase().includes(params.query!.toLowerCase())
+          order.customerEmail?.toLowerCase().includes(params.query!.toLowerCase())
         );
         return { orders: filtered, hasMore: false };
       }
@@ -809,7 +809,7 @@ class OrdersService extends BaseFirebaseService<Order> {
         recipients,
         { 
           orderId,
-          totalAmount: orderData.pricing.totalAmount,
+          totalAmount: orderData.pricing?.totalAmount || 0,
           itemCount: orderData.items.length
         }
       );

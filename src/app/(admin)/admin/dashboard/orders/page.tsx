@@ -288,7 +288,7 @@ export default function AdminOrdersPage() {
                       return orderDate.getMonth() === now.getMonth() && 
                              orderDate.getFullYear() === now.getFullYear();
                     })
-                    .reduce((sum, order) => sum + order.pricing.totalAmount, 0)
+                    .reduce((sum, order) => sum + (order.pricing?.totalAmount || 0), 0)
                 )}
               </p>
             </div>
@@ -359,13 +359,13 @@ export default function AdminOrdersPage() {
                         <div className="text-sm">{formatDate(order.orderDate)}</div>
                       </td>
                       <td className="py-4 px-4">
-                        {getStatusBadge(order.status)}
+                        {getStatusBadge(order.status as OrderStatus)}
                       </td>
                       <td className="py-4 px-4">
-                        {getPaymentStatusBadge(order.payment.status)}
+                        {order.payment && getPaymentStatusBadge(order.payment.status as PaymentStatus)}
                       </td>
                       <td className="py-4 px-4 text-right font-medium">
-                        {formatPrice(order.pricing.totalAmount)}
+                        {order.pricing && formatPrice(order.pricing.totalAmount)}
                       </td>
                       <td className="py-4 px-4 text-center">
                         <DropdownMenu>

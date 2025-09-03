@@ -87,9 +87,27 @@ export class OrdersService extends BaseFirebaseService {
         customerEmail: userEmail,
         status: OrderStatus.PENDING,
         items: orderItems,
+        
+        // 扁平化價格資訊
+        subtotal: pricing.subtotal,
+        discountAmount: pricing.discountAmount,
+        shippingFee: pricing.shippingFee,
+        taxAmount: pricing.taxAmount,
+        totalAmount: pricing.totalAmount,
+        
+        // 扁平化配送資訊
+        shippingAddress: delivery.address,
+        shippingMethod: delivery.method,
+        
+        // 扁平化付款資訊
+        paymentMethod: payment.method,
+        paymentStatus: payment.status,
+        
+        // 原有嵌套結構（向後兼容）
         pricing,
         delivery,
         payment,
+        
         notes: cartToOrderData.notes,
         orderDate: new Date(),
         source: 'website',
@@ -273,7 +291,7 @@ export class OrdersService extends BaseFirebaseService {
       }
 
       // 檢查是否可以取消
-      if (![OrderStatus.PENDING, OrderStatus.CONFIRMED].includes(order.status)) {
+      if (![OrderStatus.PENDING, OrderStatus.CONFIRMED].includes(order.status as OrderStatus)) {
         return {
           success: false,
           message: '此訂單狀態無法取消'
