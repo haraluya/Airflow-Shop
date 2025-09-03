@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import { productsService } from '@/lib/firebase/products';
 import { pricingEngine } from '@/lib/firebase/pricing';
 import { useAuth } from '@/lib/providers/auth-provider';
 import { Product } from '@/lib/types/product';
 import { Card } from '@/components/ui/card';
-import { PublicHeader } from '@/components/layout/public-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -58,10 +57,13 @@ interface ProductsPageState {
   maxPrice: number;
 }
 
-function ProductsPageContent() {
+export default function ProductsPage() {
   const { user, profile } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const params = useParams();
+  
+  const referralCode = params.referralCode as string;
   
   const [state, setState] = useState<ProductsPageState>({
     products: [],
@@ -275,7 +277,6 @@ function ProductsPageContent() {
   if (state.isLoading && state.products.length === 0) {
     return (
       <div className="min-h-screen bg-background">
-        <PublicHeader />
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -287,7 +288,6 @@ function ProductsPageContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <PublicHeader />
       <div className="container mx-auto px-4 py-8">
         {/* 頁面標頭 */}
         <div className="mb-8">
@@ -401,7 +401,7 @@ function ProductsPageContent() {
                 {state.viewMode === 'grid' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {state.products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard key={product.id} product={product} referralCode={referralCode} />
                 ))}
                   </div>
                 )}
@@ -410,7 +410,7 @@ function ProductsPageContent() {
                 {state.viewMode === 'list' && (
                   <div className="space-y-4 mb-8">
                 {state.products.map((product) => (
-                  <ProductListItem key={product.id} product={product} />
+                  <ProductListItem key={product.id} product={product} referralCode={referralCode} />
                 ))}
                   </div>
                 )}
@@ -447,7 +447,7 @@ function ProductsPageContent() {
 }
 
 // 商品卡片元件 (Grid 模式)
-function ProductCard({ product }: { product: ProductWithPrice }) {
+function ProductCard({ product, referralCode }: { product: ProductWithPrice; referralCode: string }) {
   const { user } = useAuth();
   const { addItem, isInCart, getItemQuantity } = useCart();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -470,7 +470,7 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
 
   return (
     <Card className="group overflow-hidden hover:shadow-lg transition-shadow">
-      <Link href={`/products/${product.id}`}>
+      <Link href={`/${referralCode}/products/${product.id}`}>
         {/* 商品圖片 */}
         <div className="aspect-square relative overflow-hidden bg-muted">
           {product.images.length > 0 ? (
@@ -594,13 +594,13 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
           // 未登入用戶 - 顯示登入提示
           <div className="space-y-2">
             <Button size="sm" className="w-full" variant="outline" asChild>
-              <Link href="/login">
+              <Link href={`/${referralCode}/login`}>
                 <LogIn className="mr-2 h-4 w-4" />
                 登入查看價格
               </Link>
             </Button>
             <Button size="sm" className="w-full" variant="ghost" asChild>
-              <Link href="/register">
+              <Link href={`/${referralCode}/register`}>
                 註冊成為會員
               </Link>
             </Button>
@@ -612,7 +612,7 @@ function ProductCard({ product }: { product: ProductWithPrice }) {
 }
 
 // 商品列表項目元件 (List 模式)
-function ProductListItem({ product }: { product: ProductWithPrice }) {
+function ProductListItem({ product, referralCode }: { product: ProductWithPrice; referralCode: string }) {
   const { user } = useAuth();
   const { addItem, isInCart, getItemQuantity } = useCart();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -635,7 +635,7 @@ function ProductListItem({ product }: { product: ProductWithPrice }) {
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
-      <Link href={`/products/${product.id}`}>
+      <Link href={`/${referralCode}/products/${product.id}`}>
         <div className="flex items-center gap-4">
           {/* 商品圖片 */}
           <div className="w-20 h-20 relative overflow-hidden rounded bg-muted flex-shrink-0">
@@ -736,13 +736,13 @@ function ProductListItem({ product }: { product: ProductWithPrice }) {
               // 未登入用戶 - 顯示登入按鈕
               <div className="flex flex-col gap-2">
                 <Button size="sm" variant="outline" asChild>
-                  <Link href="/login">
+                  <Link href={`/${referralCode}/login`}>
                     <LogIn className="mr-2 h-4 w-4" />
                     登入查看價格
                   </Link>
                 </Button>
                 <Button size="sm" variant="ghost" asChild>
-                  <Link href="/register">
+                  <Link href={`/${referralCode}/register`}>
                     註冊成為會員
                   </Link>
                 </Button>
@@ -752,27 +752,5 @@ function ProductListItem({ product }: { product: ProductWithPrice }) {
         </div>
       </Link>
     </Card>
-  );
-}
-
-// Loading 元件
-function ProductsLoading() {
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 主要導出元件
-export default function ProductsPage() {
-  return (
-    <Suspense fallback={<ProductsLoading />}>
-      <ProductsPageContent />
-    </Suspense>
   );
 }

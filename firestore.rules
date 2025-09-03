@@ -16,8 +16,9 @@ service cloud.firestore {
     // 檢查是否為系統管理員
     function isAdmin() {
       return isAuthenticated() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true &&
+             get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
     }
     
     // 檢查是否為客戶
@@ -32,6 +33,19 @@ service cloud.firestore {
       return isAuthenticated() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['salesperson', 'admin'];
+    }
+
+    // 管理員資料 - 管理員可以讀取，超級管理員可以寫入
+    match /admins/{adminId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+      allow create: if isAuthenticated(); // 允許初始建立（用於設定腳本）
+    }
+    
+    // 子網域管理 - 管理員可以讀寫
+    match /subdomains/{subdomainId} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow write: if isAuthenticated() && isAdmin();
     }
 
     // 用戶資料 - 只能讀寫自己的資料
